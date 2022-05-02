@@ -17,12 +17,16 @@
 package io.jmix.eclipselink.impl;
 
 import io.jmix.core.Entity;
+import io.jmix.core.common.util.ReflectionHelper;
+import io.jmix.core.entity.NoValueCollection;
 import io.jmix.core.impl.CorePersistentAttributesLoadChecker;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.data.StoreAwareLocator;
 import org.eclipse.persistence.queries.FetchGroup;
 import org.eclipse.persistence.queries.FetchGroupTracker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 
 import javax.persistence.EntityManagerFactory;
@@ -30,6 +34,8 @@ import javax.persistence.EntityManagerFactory;
 import static io.jmix.core.entity.EntitySystemAccess.getEntityEntry;
 
 public class DataPersistentAttributesLoadChecker extends CorePersistentAttributesLoadChecker {
+
+    private static final Logger log = LoggerFactory.getLogger(DataPersistentAttributesLoadChecker.class);
 
     private StoreAwareLocator storeAwareLocator;
 
@@ -65,6 +71,15 @@ public class DataPersistentAttributesLoadChecker extends CorePersistentAttribute
         }
         if (!metadataTools.isJpaEntity(metaClass)) {
             return checkIsLoadedWithGetter(entity, property);
+        }
+
+        try {
+            Object rawValue = ReflectionHelper.getFieldValue(entity, property);
+            if (rawValue instanceof NoValueCollection) {
+                return true;//NoValue placeholder should be considered as loaded like null values of just saved entities
+            }
+        } catch (RuntimeException e) {
+            log.debug("Cannot get value for property {} of class {}", property, entity.getClass().getName());
         }
 
         EntityManagerFactory emf = storeAwareLocator.getEntityManagerFactory(metaClass.getStore().getName());

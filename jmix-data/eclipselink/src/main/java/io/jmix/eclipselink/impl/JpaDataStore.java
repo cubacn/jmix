@@ -17,8 +17,10 @@
 package io.jmix.eclipselink.impl;
 
 import com.google.common.collect.Lists;
+import io.jmix.core.Id;
 import io.jmix.core.*;
 import io.jmix.core.datastore.AbstractDataStore;
+import io.jmix.core.entity.EntityValues;
 import io.jmix.core.event.EntityChangedEvent;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
@@ -50,17 +52,16 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import javax.annotation.Nullable;
-import javax.persistence.EntityManager;
-import javax.persistence.NoResultException;
-import javax.persistence.PersistenceException;
-import javax.persistence.Query;
+import javax.persistence.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import static io.jmix.core.entity.EntitySystemAccess.getEntityEntry;
 import static io.jmix.core.entity.EntityValues.getValue;
+import static javax.persistence.CascadeType.*;
 
 /**
  * INTERNAL.
@@ -217,6 +218,66 @@ public class JpaDataStore extends AbstractDataStore implements DataSortingOption
         return result.longValue();
     }
 
+
+    @Override
+    public Set<?> save(SaveContext context) {
+        JpaSaveContext jpaContext = new JpaSaveContext(context);
+        completeContextWithCascadeOperations(jpaContext);
+        log.debug("save: cascaded: {}", jpaContext.getCascadeAffectedEntities());
+        return super.save(jpaContext);
+    }
+
+    private void completeContextWithCascadeOperations(JpaSaveContext context) {
+        Set<Object> cascadeSaved = new HashSet<>();
+        for (Object entityToSave : context.getEntitiesToSave()) {
+            processCascadeOperation(entityToSave, cascadeSaved, context.getEntitiesToSave(), entityStates.isNew(entityToSave) ? PERSIST : MERGE);
+        }
+        context.getEntitiesToSave().addAll(cascadeSaved);
+        context.getCascadeAffectedEntities().addAll(cascadeSaved);
+
+        Set<Object> cascadeRemoved = new HashSet<>();
+        for (Object entityToRemove : context.getEntitiesToRemove()) {
+            processCascadeOperation(entityToRemove, cascadeRemoved, context.getEntitiesToRemove(), REMOVE);
+        }
+        context.getEntitiesToRemove().addAll(cascadeRemoved);
+        context.getCascadeAffectedEntities().addAll(cascadeRemoved);
+    }
+
+
+    private void processCascadeOperation(Object entity, Set<Object> result, Collection<Object> contextEntities, CascadeType type) {
+        List<MetaProperty> properties = metadataTools.getCascadeProperties(metadata.getClass(entity), type);
+        for (MetaProperty property : properties) {
+            if (entityStates.isLoaded(entity, property.getName())) {
+                Collection<?> referencedEntities;
+                if (property.getRange().getCardinality().isMany()) {
+                    referencedEntities = EntityValues.getValue(entity, property.getName());
+                } else {
+                    referencedEntities = Collections.singletonList(EntityValues.getValue(entity, property.getName()));
+                }
+
+                if (referencedEntities != null) {
+                    for (Object referencedEntity : referencedEntities) {
+                        if (referencedEntity != null
+                                && !contextEntities.contains(referencedEntity)
+                                && !result.contains(referencedEntity)) {
+                            processCascadeOperation(referencedEntity, result, contextEntities, type);
+                            result.add(referencedEntity);
+                        }
+                    }
+                }
+            }
+        }
+
+        for (String propertyName : metadataTools.getEmbeddedProperties(metadata.getClass(entity))) {
+            if (entityStates.isLoaded(entity, propertyName)) {
+                Object embeddedPropertyValue = EntityValues.getValue(entity, propertyName);
+                if (embeddedPropertyValue != null) {
+                    processCascadeOperation(embeddedPropertyValue, result, contextEntities, type);
+                }
+            }
+        }
+    }
+
     @Override
     protected Set<Object> saveAll(SaveContext context) {
         EntityManager em = storeAwareLocator.getEntityManager(storeName);
@@ -243,15 +304,26 @@ public class JpaDataStore extends AbstractDataStore implements DataSortingOption
 
     @Override
     protected Set<Object> deleteAll(SaveContext context) {
+        JpaSaveContext jpaContext = (JpaSaveContext) context;
         EntityManager em = storeAwareLocator.getEntityManager(storeName);
         Set<Object> result = new HashSet<>();
         boolean softDeletionBefore = PersistenceHints.isSoftDeletion(em);
         try {
-            em.setProperty(PersistenceHints.SOFT_DELETION, context.getHints().get(PersistenceHints.SOFT_DELETION));
-            for (Object entity : context.getEntitiesToRemove()) {
-                Object merged = em.merge(entity);
-                em.remove(merged);
-                result.add(merged);
+            em.setProperty(PersistenceHints.SOFT_DELETION, jpaContext.getHints().get(PersistenceHints.SOFT_DELETION));
+            for (Object entity : jpaContext.getEntitiesToRemove()) {
+                if (!jpaContext.getCascadeAffectedEntities().contains(entity)) {//todo cast above?
+                    Object merged = em.merge(entity);
+                    em.remove(merged);
+                    result.add(merged);
+                }
+            }
+            //for merged clones of removed entities that have been created by EntityManager cascade processing
+            for (Object instance : persistenceSupport.getInstances(em)) {
+                if (jpaContext.getEntitiesToRemove().contains(instance) && jpaContext.getCascadeAffectedEntities().contains(instance)) {
+                    if (!EntityValues.isSoftDeletionSupported(instance) || !PersistenceHints.isSoftDeletion(em)) {
+                        getEntityEntry(instance).setRemoved(true);//set entity entry removed state
+                    }
+                }
             }
         } finally {
             em.setProperty(PersistenceHints.SOFT_DELETION, softDeletionBefore);
@@ -352,7 +424,7 @@ public class JpaDataStore extends AbstractDataStore implements DataSortingOption
             try {
                 em.setProperty(PersistenceHints.SOFT_DELETION, context.getHints().get(PersistenceHints.SOFT_DELETION));
                 persistenceSupport.processFlush(em, false);
-                eventsInfo = entityChangedEventManager.collect( persistenceSupport.getInstances(em));
+                eventsInfo = entityChangedEventManager.collect(persistenceSupport.getInstances(em));
                 ((EntityManager) em.getDelegate()).flush();
             } catch (PersistenceException e) {
                 Pattern pattern = getUniqueConstraintViolationPattern();
