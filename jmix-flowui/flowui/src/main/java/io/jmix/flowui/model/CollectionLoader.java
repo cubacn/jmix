@@ -19,7 +19,7 @@ package io.jmix.flowui.model;
 import io.jmix.core.FetchPlan;
 import io.jmix.core.LoadContext;
 import io.jmix.core.common.event.Subscription;
-import io.jmix.flowui.SameAsUi;
+import io.jmix.flowui.view.Subscribe;
 
 import java.util.EventObject;
 import java.util.List;
@@ -29,7 +29,6 @@ import java.util.function.Function;
 /**
  * Loader of entity collections.
  */
-@SameAsUi
 @InstallSubject("loadDelegate")
 public interface CollectionLoader<E> extends BaseCollectionLoader {
 

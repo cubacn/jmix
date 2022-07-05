@@ -16,6 +16,7 @@
 
 package io.jmix.flowui.xml.layout.support;
 
+import io.jmix.core.annotation.Internal;
 import io.jmix.core.security.EntityOp;
 import io.jmix.flowui.Actions;
 import io.jmix.flowui.action.SecurityConstraintAction;
@@ -23,28 +24,33 @@ import io.jmix.flowui.exception.GuiDevelopmentException;
 import io.jmix.flowui.kit.action.Action;
 import io.jmix.flowui.kit.action.ActionVariant;
 import io.jmix.flowui.kit.action.BaseAction;
+import io.jmix.flowui.kit.component.HasActions;
 import io.jmix.flowui.kit.component.KeyCombination;
 import io.jmix.flowui.xml.layout.ComponentLoader.Context;
 import io.jmix.flowui.xml.layout.loader.ActionCustomPropertyLoader;
 import org.dom4j.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
+@Internal
 @Component("flowui_ActionLoaderSupport")
 @Scope(BeanDefinition.SCOPE_PROTOTYPE)
-public class ActionLoaderSupport {
+public class ActionLoaderSupport implements ApplicationContextAware {
 
     protected Context context;
+    protected ApplicationContext applicationContext;
     protected LoaderSupport loaderSupport;
     protected ActionCustomPropertyLoader propertyLoader;
     protected Actions actions;
     protected ComponentLoaderSupport componentLoaderSupport;
 
-    ActionLoaderSupport(Context context) {
+    public ActionLoaderSupport(Context context) {
         this.context = context;
     }
 
@@ -63,9 +69,9 @@ public class ActionLoaderSupport {
         this.actions = actions;
     }
 
-    @Autowired
-    public void setComponentLoaderSupport(ComponentLoaderSupport componentLoaderSupport) {
-        this.componentLoaderSupport = componentLoaderSupport;
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
     }
 
     public Action loadDeclarativeAction(Element element) {
@@ -73,7 +79,10 @@ public class ActionLoaderSupport {
     }
 
     protected void initAction(Element element, Action targetAction) {
-        loaderSupport.loadString(element, "text", targetAction::setText);
+        loaderSupport.loadResourceString(element, "text",
+                context.getMessageGroup(), targetAction::setText);
+        loaderSupport.loadResourceString(element, "description",
+                context.getMessageGroup(), targetAction::setDescription);
         loaderSupport.loadBoolean(element, "enable", targetAction::setEnabled);
         loaderSupport.loadBoolean(element, "visible", targetAction::setVisible);
 
@@ -83,13 +92,13 @@ public class ActionLoaderSupport {
         //todo gd refactor icon loading mechanism
         loaderSupport.loadString(element, "icon", targetAction::setIcon);
 
-        componentLoaderSupport.loadShortcut(element).ifPresent(shortcut ->
+        componentLoader().loadShortcut(element).ifPresent(shortcut ->
                 targetAction.setShortcutCombination(KeyCombination.create(shortcut)));
 
         Element propertiesEl = element.element("properties");
         if (propertiesEl != null) {
             for (Element propertyEl : propertiesEl.elements("property")) {
-                loaderSupport.loadString(propertiesEl, "name",
+                loaderSupport.loadString(propertyEl, "name",
                         name -> propertyLoader.load(targetAction, name, propertyEl.attributeValue("value")));
             }
         }
@@ -104,6 +113,20 @@ public class ActionLoaderSupport {
                     "constraintEntityOp",
                     hasSecurityConstraint::setConstraintEntityOp
             );
+        }
+    }
+
+    public void loadActions(HasActions component, Element element) {
+        Element actions = element.element("actions");
+        if (actions == null) {
+            return;
+        }
+
+        for (Element action : actions.elements("action")) {
+            Action actionToSet = loadDeclarativeActionByType(action)
+                    .orElseGet(() ->
+                            loadDeclarativeAction(action));
+            component.addAction(actionToSet);
         }
     }
 
@@ -122,18 +145,17 @@ public class ActionLoaderSupport {
     protected Action loadDeclarativeActionDefault(Element element) {
         String id = loadActionId(element);
 
-        //String trackSelection = element.attributeValue("trackSelection");
-        //boolean shouldTrackSelection = Boolean.parseBoolean(trackSelection);
+        boolean shouldTrackSelection = loaderSupport.loadBoolean(element, "trackSelection")
+                .orElse(false);
 
         Action targetAction;
 
-        //if (shouldTrackSelection) {
-        //    Actions actions = getActions();
-        //    targetAction = actions.create(ItemTrackingAction.ID, id);
-        //loadActionConstraint(targetAction, element);
-        //} else {
+//        if (shouldTrackSelection) {
+//            targetAction = actions.create(ItemTrackingAction.ID, id);
+//            loadActionConstraint(targetAction, element);
+//        } else {
         targetAction = new BaseAction(id);
-        // }
+//        }
 
         initAction(element, targetAction);
 
@@ -154,5 +176,12 @@ public class ActionLoaderSupport {
                         "Component ID", component.attributeValue("id"));
             }
         });
+    }
+
+    protected ComponentLoaderSupport componentLoader() {
+        if (componentLoaderSupport == null) {
+            componentLoaderSupport = applicationContext.getBean(ComponentLoaderSupport.class, context);
+        }
+        return componentLoaderSupport;
     }
 }

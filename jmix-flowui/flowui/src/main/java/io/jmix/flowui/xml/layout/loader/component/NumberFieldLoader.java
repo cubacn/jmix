@@ -16,43 +16,53 @@
 
 package io.jmix.flowui.xml.layout.loader.component;
 
-import com.vaadin.flow.component.textfield.Autocapitalize;
-import com.vaadin.flow.component.textfield.Autocomplete;
-import com.vaadin.flow.component.textfield.NumberField;
+import io.jmix.flowui.component.textfield.JmixNumberField;
 import io.jmix.flowui.xml.layout.loader.AbstractComponentLoader;
+import io.jmix.flowui.xml.layout.support.DataLoaderSupport;
 
-public class NumberFieldLoader extends AbstractComponentLoader<NumberField> {
+public class NumberFieldLoader extends AbstractComponentLoader<JmixNumberField> {
+
+    protected DataLoaderSupport dataLoaderSupport;
 
     @Override
-    protected NumberField createComponent() {
-        return factory.create(NumberField.class);
+    protected JmixNumberField createComponent() {
+        return factory.create(JmixNumberField.class);
     }
 
     @Override
     public void loadComponent() {
+        getDataLoaderSupport().loadData(resultComponent, element);
+
         loadDouble(element, "max", resultComponent::setMax);
         loadDouble(element, "min", resultComponent::setMin);
         loadDouble(element, "step", resultComponent::setStep);
-        loadString(element, "label", resultComponent::setLabel);
-        loadString(element, "title", resultComponent::setTitle);
         loadDouble(element, "value", resultComponent::setValue);
-        loadBoolean(element, "invalid", resultComponent::setInvalid);
         loadBoolean(element, "autofocus", resultComponent::setAutofocus);
-        loadBoolean(element, "autoSelect", resultComponent::setAutoselect);
-        loadString(element, "placeholder", resultComponent::setPlaceholder);
+        loadBoolean(element, "autoselect", resultComponent::setAutoselect);
+        loadResourceString(element, "placeholder", context.getMessageGroup(), resultComponent::setPlaceholder);
         loadBoolean(element, "hasControls", resultComponent::setHasControls);
-        loadBoolean(element, "autoCorrect", resultComponent::setAutocorrect);
         loadBoolean(element, "clearButtonVisible", resultComponent::setClearButtonVisible);
-        loadEnum(element, Autocomplete.class, "autoComplete", resultComponent::setAutocomplete);
-        loadResourceString("errorMessage", context.getMessageGroup(), resultComponent::setErrorMessage);
-        loadEnum(element, Autocapitalize.class, "autoCapitalize", resultComponent::setAutocapitalize);
+        loadResourceString(element, "title", context.getMessageGroup(), resultComponent::setTitle);
 
+        componentLoader().loadLabel(resultComponent, element);
         componentLoader().loadEnabled(resultComponent, element);
+        componentLoader().loadRequired(resultComponent, element, context);
         componentLoader().loadThemeName(resultComponent, element);
         componentLoader().loadClassName(resultComponent, element);
         componentLoader().loadHelperText(resultComponent, element);
+        componentLoader().loadAutocomplete(resultComponent, element);
+        componentLoader().loadAutocapitalize(resultComponent, element);
+        componentLoader().loadAutocorrect(resultComponent, element);
         componentLoader().loadSizeAttributes(resultComponent, element);
         componentLoader().loadValueChangeMode(resultComponent, element);
         componentLoader().loadValueAndElementAttributes(resultComponent, element);
+        componentLoader().loadValidationAttributes(resultComponent, element, context);
+    }
+
+    protected DataLoaderSupport getDataLoaderSupport() {
+        if (dataLoaderSupport == null) {
+            dataLoaderSupport = applicationContext.getBean(DataLoaderSupport.class, context);
+        }
+        return dataLoaderSupport;
     }
 }

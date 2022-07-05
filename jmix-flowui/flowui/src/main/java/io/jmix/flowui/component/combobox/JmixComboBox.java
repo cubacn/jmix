@@ -1,19 +1,21 @@
 package io.jmix.flowui.component.combobox;
 
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.data.provider.DataProvider;
+import com.vaadin.flow.function.SerializableFunction;
 import com.vaadin.flow.shared.Registration;
-import io.jmix.flowui.data.Options;
-import io.jmix.flowui.data.SupportsListOptions;
-import io.jmix.flowui.data.SupportsValueSource;
-import io.jmix.flowui.data.ValueSource;
 import io.jmix.flowui.component.HasRequired;
-import io.jmix.flowui.component.HasTitle;
 import io.jmix.flowui.component.SupportsValidation;
 import io.jmix.flowui.component.delegate.AbstractFieldDelegate;
+import io.jmix.flowui.component.delegate.DataViewDelegate;
 import io.jmix.flowui.component.delegate.FieldDelegate;
-import io.jmix.flowui.component.delegate.ListOptionsDelegate;
 import io.jmix.flowui.component.validation.Validator;
+import io.jmix.flowui.data.SupportsDataProvider;
+import io.jmix.flowui.data.SupportsItemsEnum;
+import io.jmix.flowui.data.SupportsValueSource;
+import io.jmix.flowui.data.ValueSource;
 import io.jmix.flowui.exception.ValidationException;
+import io.jmix.flowui.kit.component.HasTitle;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -21,16 +23,14 @@ import org.springframework.context.ApplicationContextAware;
 import javax.annotation.Nullable;
 
 public class JmixComboBox<V> extends ComboBox<V>
-        implements SupportsValueSource<V>, SupportsValidation<V>, SupportsListOptions<V>,
-        HasRequired, HasTitle,
+        implements SupportsValueSource<V>, SupportsValidation<V>, SupportsDataProvider<V>,
+        SupportsItemsEnum<V>, HasRequired, HasTitle,
         ApplicationContextAware, InitializingBean {
 
     protected ApplicationContext applicationContext;
 
-    protected String requiredMessage;
-
     protected AbstractFieldDelegate<? extends JmixComboBox<V>, V, V> fieldDelegate;
-    protected ListOptionsDelegate<JmixComboBox<V>, V> optionsDelegate;
+    protected DataViewDelegate<JmixComboBox<V>, V> dataViewDelegate;
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) {
@@ -44,7 +44,10 @@ public class JmixComboBox<V> extends ComboBox<V>
 
     protected void initComponent() {
         fieldDelegate = createFieldDelegate();
-        optionsDelegate = createOptionsDelegate();
+        dataViewDelegate = createDataViewDelegate();
+
+        fieldDelegate.addValueBindingChangeListener(event ->
+                dataViewDelegate.valueBindingChanged(event));
 
         setItemLabelGenerator(fieldDelegate::applyDefaultValueFormat);
     }
@@ -59,15 +62,18 @@ public class JmixComboBox<V> extends ComboBox<V>
         fieldDelegate.executeValidators();
     }
 
-    @Nullable
     @Override
-    public Options<V> getListOptions() {
-        return optionsDelegate.getListOptions();
+    public <C> void setDataProvider(DataProvider<V, C> dataProvider, SerializableFunction<String, C> filterConverter) {
+        // Method is called from a constructor so bean can be null
+        if (dataViewDelegate != null) {
+            dataViewDelegate.bind(dataProvider);
+        }
+        super.setDataProvider(dataProvider, filterConverter);
     }
 
     @Override
-    public void setListOptions(@Nullable Options<V> options) {
-        optionsDelegate.setListOptions(options);
+    public void setItems(Class<V> itemsEnum) {
+        dataViewDelegate.setItems(itemsEnum);
     }
 
     @Nullable
@@ -84,12 +90,12 @@ public class JmixComboBox<V> extends ComboBox<V>
     @Nullable
     @Override
     public String getRequiredMessage() {
-        return requiredMessage;
+        return fieldDelegate.getRequiredMessage();
     }
 
     @Override
     public void setRequiredMessage(@Nullable String requiredMessage) {
-        this.requiredMessage = requiredMessage;
+        fieldDelegate.setRequiredMessage(requiredMessage);
     }
 
     @Override
@@ -108,7 +114,7 @@ public class JmixComboBox<V> extends ComboBox<V>
     }
 
     @SuppressWarnings("unchecked")
-    protected ListOptionsDelegate<JmixComboBox<V>, V> createOptionsDelegate() {
-        return applicationContext.getBean(ListOptionsDelegate.class, this);
+    protected DataViewDelegate<JmixComboBox<V>, V> createDataViewDelegate() {
+        return applicationContext.getBean(DataViewDelegate.class, this);
     }
 }

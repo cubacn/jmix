@@ -27,6 +27,7 @@ import org.apache.http.HttpRequestInterceptor;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.RestHighLevelClientBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,11 +35,11 @@ import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 
 import javax.net.ssl.SSLContext;
 
-@Configuration
+@AutoConfiguration
 @AutoConfigureBefore(SearchAutoConfiguration.class)
 @ConfigurationPropertiesScan
 public class SearchAwsAutoConfiguration {
@@ -70,7 +71,9 @@ public class SearchAwsAutoConfiguration {
             return builder;
         });
 
-        return new RestHighLevelClient(restClientBuilder);
+        return new RestHighLevelClientBuilder(restClientBuilder.build())
+                .setApiCompatibilityMode(searchProperties.isRestHighLevelClientApiCompatibilityModeEnabled())
+                .build();
     }
 
     protected HttpRequestInterceptor createHttpRequestInterceptor() {

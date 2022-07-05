@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,8 @@
 
 package io.jmix.flowui.component.validation;
 
-import io.jmix.core.Messages;
 import io.jmix.core.common.util.ParamsMap;
 import io.jmix.core.common.util.Preconditions;
-import io.jmix.flowui.SameAsUi;
 import io.jmix.flowui.exception.ValidationException;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -49,12 +47,9 @@ import java.util.regex.Pattern;
  *
  * @see Pattern
  */
-@SameAsUi
 @Component("flowui_RegexpValidator")
 @Scope(BeanDefinition.SCOPE_PROTOTYPE)
 public class RegexpValidator extends AbstractValidator<String> implements InitializingBean {
-
-    protected Messages messages;
 
     protected Pattern pattern;
 
@@ -76,12 +71,6 @@ public class RegexpValidator extends AbstractValidator<String> implements Initia
 
         this.message = message;
         this.pattern = Pattern.compile(regexp);
-    }
-
-    @Override
-    public void afterPropertiesSet() throws Exception {
-        super.afterPropertiesSet();
-        messages = applicationContext.getBean(Messages.class);
     }
 
     /**
@@ -109,11 +98,11 @@ public class RegexpValidator extends AbstractValidator<String> implements Initia
 
         if (!pattern.matcher((value)).matches()) {
             String message = getMessage();
-            if (message == null) {
-                message = messages.getMessage("validation.constraints.regexp");
-            }
+            this.defaultMessage = messages.getMessage("validation.constraints.regexp");
 
-            throw new ValidationException(getTemplateErrorMessage(message, ParamsMap.of("value", value)));
+            fireValidationException(
+                    message == null ? defaultMessage : message,
+                    ParamsMap.of("value", value));
         }
     }
 }

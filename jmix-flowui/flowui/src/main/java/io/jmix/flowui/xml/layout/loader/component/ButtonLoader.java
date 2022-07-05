@@ -30,13 +30,12 @@ public class ButtonLoader extends AbstractComponentLoader<JmixButton> {
 
     @Override
     public void loadComponent() {
-
         loadIcon();
         loadBoolean(element, "autofocus", resultComponent::setAutofocus);
         loadBoolean(element, "iconAfterText", resultComponent::setIconAfterText);
         loadBoolean(element, "disableOnClick", resultComponent::setDisableOnClick);
-        loadString(element, "title", resultComponent::setTitle);
 
+        componentLoader().loadTitle(resultComponent, element, context);
         componentLoader().loadText(resultComponent, element);
         componentLoader().loadWhiteSpace(resultComponent, element);
         componentLoader().loadEnabled(resultComponent, element);
@@ -55,7 +54,7 @@ public class ButtonLoader extends AbstractComponentLoader<JmixButton> {
     protected void loadAction(JmixButton component, Element element) {
         loadString(element, "action")
                 .ifPresent(actionId -> getComponentContext().addInitTask(
-                        new AssignActionInitTask<>(component, actionId, getComponentContext().getScreen())
+                        new AssignActionInitTask<>(component, actionId, getComponentContext().getView())
                 ));
     }
 }

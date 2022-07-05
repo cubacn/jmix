@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,11 @@
 package io.jmix.flowui.component.validation;
 
 import com.google.common.base.Strings;
+import io.jmix.core.Messages;
 import io.jmix.core.metamodel.datatype.Datatype;
 import io.jmix.core.metamodel.datatype.DatatypeRegistry;
 import io.jmix.core.security.CurrentAuthentication;
-import io.jmix.flowui.SameAsUi;
+import io.jmix.flowui.exception.ValidationException;
 import io.jmix.flowui.sys.substitutor.StringSubstitutor;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.InitializingBean;
@@ -30,14 +31,14 @@ import org.springframework.context.ApplicationContextAware;
 import javax.annotation.Nullable;
 import java.util.Map;
 
-
 /**
  * Main class for validators.
  *
  * @param <T> value type
  */
-@SameAsUi
 public abstract class AbstractValidator<T> implements Validator<T>, ApplicationContextAware, InitializingBean {
+
+    protected Messages messages;
 
     protected CurrentAuthentication currentAuthentication;
     protected DatatypeRegistry datatypeRegistry;
@@ -45,6 +46,7 @@ public abstract class AbstractValidator<T> implements Validator<T>, ApplicationC
     protected ApplicationContext applicationContext;
 
     protected String message;
+    protected String defaultMessage;
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
@@ -56,6 +58,7 @@ public abstract class AbstractValidator<T> implements Validator<T>, ApplicationC
         currentAuthentication = applicationContext.getBean(CurrentAuthentication.class);
         datatypeRegistry = applicationContext.getBean(DatatypeRegistry.class);
         substitutor = applicationContext.getBean(StringSubstitutor.class);
+        messages = applicationContext.getBean(Messages.class);
     }
 
     /**
@@ -93,5 +96,13 @@ public abstract class AbstractValidator<T> implements Validator<T>, ApplicationC
         return datatype != null
                 ? datatype.format(value, currentAuthentication.getLocale())
                 : value.toString();
+    }
+
+    protected void fireValidationException(String errorMessage) {
+        throw new ValidationException(errorMessage);
+    }
+
+    protected void fireValidationException(String errorMessage, Map<String, Object> map) {
+        throw new ValidationException(getTemplateErrorMessage(errorMessage, map));
     }
 }

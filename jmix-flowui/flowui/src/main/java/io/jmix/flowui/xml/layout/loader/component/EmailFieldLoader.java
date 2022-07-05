@@ -16,42 +16,53 @@
 
 package io.jmix.flowui.xml.layout.loader.component;
 
-import com.vaadin.flow.component.textfield.Autocapitalize;
-import com.vaadin.flow.component.textfield.Autocomplete;
-import com.vaadin.flow.component.textfield.EmailField;
+import io.jmix.flowui.component.textfield.JmixEmailField;
 import io.jmix.flowui.xml.layout.loader.AbstractComponentLoader;
+import io.jmix.flowui.xml.layout.support.DataLoaderSupport;
 
-//TODO: kremnevda, replace EmailField to JmixEmailField 25.04.2022
-public class EmailFieldLoader extends AbstractComponentLoader<EmailField> {
+public class EmailFieldLoader extends AbstractComponentLoader<JmixEmailField> {
+
+    protected DataLoaderSupport dataLoaderSupport;
 
     @Override
-    protected EmailField createComponent() {
-        return factory.create(EmailField.class);
+    protected JmixEmailField createComponent() {
+        return factory.create(JmixEmailField.class);
     }
 
     @Override
     public void loadComponent() {
-        loadString(element, "label", resultComponent::setLabel);
-        loadString(element, "title", resultComponent::setTitle);
+        getDataLoaderSupport().loadData(resultComponent, element);
+
         loadString(element, "value", resultComponent::setValue);
         loadString(element, "pattern", resultComponent::setPattern);
-        loadBoolean(element, "invalid", resultComponent::setInvalid);
+        loadInteger(element, "maxLength", resultComponent::setMaxLength);
+        loadInteger(element, "minLength", resultComponent::setMinLength);
         loadBoolean(element, "autofocus", resultComponent::setAutofocus);
-        loadBoolean(element, "autoSelect", resultComponent::setAutoselect);
-        loadString(element, "placeholder", resultComponent::setPlaceholder);
-        loadBoolean(element, "autoCorrect", resultComponent::setAutocorrect);
+        loadBoolean(element, "autoselect", resultComponent::setAutoselect);
+        loadResourceString(element, "placeholder", context.getMessageGroup(), resultComponent::setPlaceholder);
         loadBoolean(element, "clearButtonVisible", resultComponent::setClearButtonVisible);
         loadBoolean(element, "preventInvalidInput", resultComponent::setPreventInvalidInput);
-        loadEnum(element, Autocomplete.class, "autoComplete", resultComponent::setAutocomplete);
-        loadResourceString("errorMessage", context.getMessageGroup(), resultComponent::setErrorMessage);
-        loadEnum(element, Autocapitalize.class, "autoCapitalize", resultComponent::setAutocapitalize);
+        loadResourceString(element, "title", context.getMessageGroup(), resultComponent::setTitle);
 
+        componentLoader().loadLabel(resultComponent, element);
         componentLoader().loadEnabled(resultComponent, element);
         componentLoader().loadThemeName(resultComponent, element);
         componentLoader().loadClassName(resultComponent, element);
         componentLoader().loadHelperText(resultComponent, element);
+        componentLoader().loadAutocomplete(resultComponent, element);
+        componentLoader().loadRequired(resultComponent, element, context);
+        componentLoader().loadAutocapitalize(resultComponent, element);
+        componentLoader().loadAutocorrect(resultComponent, element);
         componentLoader().loadSizeAttributes(resultComponent, element);
         componentLoader().loadValueChangeMode(resultComponent, element);
         componentLoader().loadValueAndElementAttributes(resultComponent, element);
+        componentLoader().loadValidationAttributes(resultComponent, element, context);
+    }
+
+    protected DataLoaderSupport getDataLoaderSupport() {
+        if (dataLoaderSupport == null) {
+            dataLoaderSupport = applicationContext.getBean(DataLoaderSupport.class, context);
+        }
+        return dataLoaderSupport;
     }
 }

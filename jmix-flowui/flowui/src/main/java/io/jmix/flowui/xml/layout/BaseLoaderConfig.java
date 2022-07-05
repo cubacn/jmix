@@ -16,18 +16,10 @@
 
 package io.jmix.flowui.xml.layout;
 
-
 import com.vaadin.flow.component.Component;
 import io.jmix.flowui.xml.layout.loader.component.*;
-import io.jmix.flowui.xml.layout.loader.container.AccordionLoader;
-import io.jmix.flowui.xml.layout.loader.container.ScrollerLoader;
-import io.jmix.flowui.xml.layout.loader.container.TabsLoader;
-import io.jmix.flowui.xml.layout.loader.html.component.HrLoader;
-import io.jmix.flowui.xml.layout.loader.html.component.IFrameLoader;
-import io.jmix.flowui.xml.layout.loader.html.component.InputLoader;
-import io.jmix.flowui.xml.layout.loader.html.component.ParamLoader;
-import io.jmix.flowui.xml.layout.loader.html.container.*;
-import io.jmix.flowui.xml.layout.loader.layout.*;
+import io.jmix.flowui.xml.layout.loader.container.*;
+import io.jmix.flowui.xml.layout.loader.html.*;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,48 +33,62 @@ public abstract class BaseLoaderConfig {
     }
 
     protected void initStandardLoaders() {
-        // TODO: gg, store component names somewhere
-        /*Abstract layouts*/
+        /* Abstract layouts */
         loaders.put("hbox", HorizontalLayoutLoader.class);
         loaders.put("vbox", VerticalLayoutLoader.class);
 
-        /*Content panel*/
+        /* Content panel */
         loaders.put("accordion", AccordionLoader.class);
         loaders.put("accordionPanel", AccordionLoader.AccordionPanelLoader.class);
         loaders.put("scroller", ScrollerLoader.class);
         loaders.put("tabs", TabsLoader.class);
         loaders.put("tab", TabsLoader.TabLoader.class);
-        loaders.put("grid", JmixGridLoader.class);
-        loaders.put("column", JmixGridLoader.GridColumnLoader.class);
         loaders.put("details", DetailsLoader.class);
         loaders.put("split", SplitLayoutLoader.class);
-        loaders.put("form", FormLayoutLoader.class);
-        loaders.put("formItem", FormLayoutLoader.FormItemLoader.class);
+        loaders.put("formLayout", FormLayoutLoader.class);
 
-        /*Components*/
+        /* Components */
         loaders.put("button", ButtonLoader.class);
         loaders.put("textField", TextFieldLoader.class);
         loaders.put("emailField", EmailFieldLoader.class);
         loaders.put("numberField", NumberFieldLoader.class);
         loaders.put("passwordField", PasswordFieldLoader.class);
         loaders.put("bigDecimalField", BigDecimalFieldLoader.class);
-        loaders.put("checkBox", CheckBoxLoader.class);
+        loaders.put("integerField", IntegerFieldLoader.class);
+        loaders.put("progressBar", ProgressBarLoader.class);
+        loaders.put("radioButtonGroup", RadioButtonGroupLoader.class);
+        loaders.put("checkboxGroup", CheckboxGroupLoader.class);
+        loaders.put("listBox", ListBoxLoader.class);
+        loaders.put("multiSelectListBox", MultiSelectListBoxLoader.class);
+        loaders.put("textArea", TextAreaLoader.class);
+        loaders.put("checkbox", CheckboxLoader.class);
         loaders.put("comboBox", ComboBoxLoader.class);
         loaders.put("timePicker", TimePickerLoader.class);
         loaders.put("dateTimePicker", DateTimePickerLoader.class);
         loaders.put("datePicker", DatePickerLoader.class);
         loaders.put("avatar", AvatarLoader.class);
         loaders.put("select", SelectLoader.class);
+        loaders.put("valuePicker", ValuePickerLoader.class);
+        loaders.put("valuesPicker", ValuesPickerLoader.class);
+        loaders.put("entityPicker", EntityPickerLoader.class);
+        loaders.put("comboBoxPicker", ComboBoxPickerLoader.class);
+        loaders.put("entityComboBox", EntityComboBoxLoader.class);
+        loaders.put("listMenu", ListMenuLoader.class);
+        loaders.put("drawerToggle", DrawerToggleLoader.class);
+        loaders.put("userIndicator", UserIndicatorLoader.class);
+        loaders.put("dataGrid", DataGridLoader.class);
+        loaders.put("treeDataGrid", TreeDataGridLoader.class);
+        loaders.put("loginForm", LoginFormLoader.class);
+        loaders.put("loginOverlay", LoginOverlayLoader.class);
 
-        /*HTML components*/
-
+        /* HTML components */
         loaders.put("param", ParamLoader.class);
         loaders.put("hr", HrLoader.class);
         loaders.put("input", InputLoader.class);
         loaders.put("image", ImageLoader.class);
         loaders.put("iframe", IFrameLoader.class);
-        /*Containers*/
 
+        /* Containers */
         loaders.put("h1", H1Loader.class);
         loaders.put("h2", H2Loader.class);
         loaders.put("h3", H3Loader.class);

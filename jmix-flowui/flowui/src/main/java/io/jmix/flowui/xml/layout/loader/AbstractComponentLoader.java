@@ -17,16 +17,11 @@
 package io.jmix.flowui.xml.layout.loader;
 
 import com.vaadin.flow.component.Component;
-import io.jmix.core.ClassManager;
-import io.jmix.core.MessageTools;
-import io.jmix.core.Messages;
-import io.jmix.flowui.Actions;
 import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.xml.layout.ComponentLoader;
 import io.jmix.flowui.xml.layout.LoaderResolver;
 import io.jmix.flowui.xml.layout.support.ComponentLoaderSupport;
 import io.jmix.flowui.xml.layout.support.LoaderSupport;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.dom4j.Element;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
@@ -40,17 +35,18 @@ public abstract class AbstractComponentLoader<T extends Component> implements Co
 
     protected Context context;
 
+    protected ApplicationContext applicationContext;
+    protected Environment environment;
+
     protected UiComponents factory;
     protected LoaderResolver loaderResolver;
+
     protected LoaderSupport loaderSupport;
-    private ComponentLoaderSupport componentLoaderSupport;
+    protected ComponentLoaderSupport componentLoaderSupport;
 
     protected Element element;
 
     protected T resultComponent;
-
-    protected ApplicationContext applicationContext;
-    protected Environment environment;
 
     protected AbstractComponentLoader() {
     }
@@ -82,13 +78,6 @@ public abstract class AbstractComponentLoader<T extends Component> implements Co
         return (ComponentContext) context;
     }
 
-    protected ComponentLoaderSupport componentLoader() {
-        if (componentLoaderSupport == null) {
-            componentLoaderSupport = applicationContext.getBean(ComponentLoaderSupport.class, context);
-        }
-        return componentLoaderSupport;
-    }
-
     protected abstract T createComponent();
 
     @Override
@@ -97,13 +86,6 @@ public abstract class AbstractComponentLoader<T extends Component> implements Co
         loadId(resultComponent, element);
         loadVisible(resultComponent, element);
     }
-
-    /*protected CompositeComponentContext getCompositeComponentContext() {
-        checkState(context instanceof CompositeComponentContext,
-                "'context' must implement io.jmix.ui.xml.layout.ComponentLoader.CompositeComponentContext");
-
-        return (CompositeComponentContext) context;
-    }*/
 
     @Override
     public UiComponents getFactory() {
@@ -150,35 +132,14 @@ public abstract class AbstractComponentLoader<T extends Component> implements Co
         this.loaderSupport = loaderSupport;
     }
 
-    protected Messages getMessages() {
-        return applicationContext.getBean(Messages.class);
-    }
-
-    protected Actions getActions() {
-        return applicationContext.getBean(Actions.class);
-    }
-
-    protected MessageTools getMessageTools() {
-        return applicationContext.getBean(MessageTools.class);
-    }
-
-    protected ClassManager getClassManager() {
-        return applicationContext.getBean(ClassManager.class);
-    }
-
-    /*protected UiProperties getProperties() {
-        return applicationContext.getBean(UiProperties.class);
-    }*/
-
-    protected MeterRegistry getMeterRegistry() {
-        return applicationContext.getBean(MeterRegistry.class);
+    protected ComponentLoaderSupport componentLoader() {
+        if (componentLoaderSupport == null) {
+            componentLoaderSupport = applicationContext.getBean(ComponentLoaderSupport.class, context);
+        }
+        return componentLoaderSupport;
     }
 
     protected LayoutLoader getLayoutLoader() {
-        return applicationContext.getBean(LayoutLoader.class, context);
-    }
-
-    protected LayoutLoader getLayoutLoader(Context context) {
         return applicationContext.getBean(LayoutLoader.class, context);
     }
 
@@ -194,8 +155,8 @@ public abstract class AbstractComponentLoader<T extends Component> implements Co
         return loaderSupport.loadBoolean(element, attributeName);
     }
 
-    protected String loadResourceString(String message, String messageGroup) {
-        return loaderSupport.loadResourceString(message, messageGroup);
+    protected Optional<String> loadResourceString(Element element, String attributeName, String messageGroup) {
+        return loaderSupport.loadResourceString(element, attributeName, messageGroup);
     }
 
     protected Optional<String> loadString(Element element, String attributeName) {
@@ -218,8 +179,9 @@ public abstract class AbstractComponentLoader<T extends Component> implements Co
         loaderSupport.loadBoolean(element, attributeName, setter);
     }
 
-    protected void loadResourceString(String message, String messageGroup, Consumer<String> setter) {
-        loaderSupport.loadResourceString(message, messageGroup, setter);
+    protected void loadResourceString(Element element, String attributeName, String messageGroup,
+                                      Consumer<String> setter) {
+        loaderSupport.loadResourceString(element, attributeName, messageGroup, setter);
     }
 
     protected void loadString(Element element, String attributeName, Consumer<String> setter) {

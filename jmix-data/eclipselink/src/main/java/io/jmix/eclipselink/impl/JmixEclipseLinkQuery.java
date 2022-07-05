@@ -459,10 +459,9 @@ public class JmixEclipseLinkQuery<E> implements JmixQuery<E> {
                 }
             } else {
                 log.trace("Creating JPQL query: {}", queryString);
+                processParams(queryString);
                 transformedQueryString = transformQueryString();
                 log.trace("Transformed JPQL query: {}", transformedQueryString);
-
-                processParams(transformedQueryString);
 
                 Class effectiveClass = getEffectiveResultClass();
                 query = buildJPAQuery(transformedQueryString, effectiveClass);
@@ -634,12 +633,10 @@ public class JmixEclipseLinkQuery<E> implements JmixQuery<E> {
                     Param param = paramOpt.get();
                     if (param.value == null) {
                         param.value = queryParamValuesManager.getValue(paramName);
-                        break;
                     }
                 } else {
                     Object value = queryParamValuesManager.getValue(paramName);
                     params.add(new Param(paramName, value));
-                    break;
                 }
             }
         }

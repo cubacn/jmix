@@ -17,7 +17,7 @@ package io.jmix.flowui.xml.layout.loader;
 
 import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.exception.GuiDevelopmentException;
-import io.jmix.flowui.screen.Screen;
+import io.jmix.flowui.view.View;
 import io.jmix.flowui.xml.layout.ComponentLoader;
 import io.jmix.flowui.xml.layout.ComponentLoader.Context;
 import io.jmix.flowui.xml.layout.LoaderResolver;
@@ -89,17 +89,15 @@ public class LayoutLoader {
         return initLoader(element, loaderClass);
     }
 
-    /*protected FragmentLoader getFragmentLoader(Element rootWindowElement) {
-        Class<? extends ComponentLoader> loaderClass = loaderResolver.getFragmentLoader(rootWindowElement);
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected AbstractViewLoader<View<?>> getViewLoader(Element rootElement) {
+        Class<? extends ComponentLoader> loaderClass = loaderResolver.getViewLoader(rootElement);
 
-        return (FragmentLoader) initLoader(rootWindowElement, loaderClass);
-    }*/
+        if (loaderClass == null) {
+            throw new IllegalStateException(String.format("Loader for %s not found", rootElement.getName()));
+        }
 
-    @SuppressWarnings("rawtypes")
-    protected ScreenLoader getScreenLoader(Element rootScreenElement) {
-        Class<? extends ComponentLoader> loaderClass = loaderResolver.getScreenLoader(rootScreenElement);
-
-        return (ScreenLoader) initLoader(rootScreenElement, loaderClass);
+        return (AbstractViewLoader<View<?>>) initLoader(rootElement, loaderClass);
     }
 
     @SuppressWarnings("rawtypes")
@@ -135,27 +133,10 @@ public class LayoutLoader {
         return getLoader(element);
     }
 
-    /*public ComponentLoader<Fragment> createFragmentContent(Fragment fragment, Element rootWindowElement) {
-        FragmentLoader fragmentLoader = getFragmentLoader(rootWindowElement);
-        fragmentLoader.setResultComponent(fragment);
-
-        Element layout = rootWindowElement.element("layout");
-        if (layout != null) {
-            fragmentLoader.createContent(layout);
-        }
-
-        return fragmentLoader;
-    }*/
-
-    public ComponentLoader<Screen> createScreenContent(Screen screen, Element rootScreenElement) {
-        ScreenLoader screenLoader = getScreenLoader(rootScreenElement);
-        screenLoader.setResultComponent(screen);
-
-        Element layout = rootScreenElement.element("layout");
-        // TODO: gg, throw exception if no root element?
-        if (layout != null) {
-            screenLoader.createContent(layout);
-        }
-        return screenLoader;
+    public ComponentLoader<View<?>> createViewContent(View<?> view, Element rootElement) {
+        AbstractViewLoader<View<?>> loader = getViewLoader(rootElement);
+        loader.setResultComponent(view);
+        loader.createContent();
+        return loader;
     }
 }

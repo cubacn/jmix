@@ -35,6 +35,9 @@ class JmixBuildPlugin implements Plugin<Project> {
             String jmixRepoUrl = rootProject.findProperty('jmixRepoUrl')
             if (jmixRepoUrl) {
                 repositories {
+                    if (rootProject.hasProperty('jmixUseLocalMavenRepository')) {
+                        mavenLocal()
+                    }
                     maven {
                         url jmixRepoUrl
                         String jmixRepoUser = rootProject.findProperty('jmixRepoUser')
@@ -67,8 +70,8 @@ class JmixBuildPlugin implements Plugin<Project> {
 
             afterEvaluate {
                 java {
-                    sourceCompatibility = JavaVersion.VERSION_1_8
-                    targetCompatibility = JavaVersion.VERSION_1_8
+                    sourceCompatibility = JavaVersion.VERSION_11
+                    targetCompatibility = JavaVersion.VERSION_11
                 }
             }
         }
@@ -179,6 +182,7 @@ class JmixBuildPlugin implements Plugin<Project> {
                             options.encoding = 'UTF-8'
                             options.memberLevel = JavadocMemberLevel.PROTECTED
                             options.addStringOption("sourcepath", "")
+                            include('io/jmix/**')
 
                             dependsOn javaSubprojects.javadoc
                             source javaSubprojects.javadoc.source
@@ -237,7 +241,6 @@ class JmixBuildPlugin implements Plugin<Project> {
                     }
 
                     spotbugs {
-                        toolVersion = '4.2.1'
                         ignoreFailures = false
                         omitVisitors = ['FindDoubleCheck']
                         excludeFilter = project.file(excludeFilterFilePath)
@@ -280,7 +283,7 @@ class JmixBuildPlugin implements Plugin<Project> {
     }
 
     private void setupDependencyManagement(Project project) {
-        def bom = project.rootProject.findProject("bom") ?: "io.jmix.bom:jmix-bom:${project.bomVersion}"
+        def bom = project.rootProject.findProject("bom") ?: "io.jmix.bom:jmix-bom:${project.version}"
         project.with {
             dependencies {
                 api platform(bom)

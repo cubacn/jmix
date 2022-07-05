@@ -5,25 +5,30 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.HasComponents;
 import io.jmix.core.DevelopmentException;
-import io.jmix.flowui.component.HasActions;
+import io.jmix.flowui.component.EnhancedHasComponents;
 import io.jmix.flowui.component.UiComponentUtils;
-import io.jmix.flowui.component.layout.ScreenLayout;
+import io.jmix.flowui.facet.Facet;
 import io.jmix.flowui.kit.action.Action;
+import io.jmix.flowui.kit.component.HasActions;
 import io.jmix.flowui.model.DataLoader;
 import io.jmix.flowui.model.InstallSubject;
 import io.jmix.flowui.model.InstanceContainer;
-import io.jmix.flowui.model.ScreenData;
-import io.jmix.flowui.screen.*;
+import io.jmix.flowui.model.ViewData;
+import io.jmix.flowui.view.*;
 import io.jmix.flowui.sys.UiControllerReflectionInspector.AnnotatedMethod;
 import io.jmix.flowui.sys.UiControllerReflectionInspector.InjectElement;
-import io.jmix.flowui.sys.UiControllerReflectionInspector.ScreenIntrospectionData;
+import io.jmix.flowui.sys.UiControllerReflectionInspector.ViewIntrospectionData;
 import io.jmix.flowui.sys.delegate.*;
+import io.jmix.flowui.sys.event.UiEventListenerMethodAdapter;
+import io.jmix.flowui.sys.event.UiEventsManager;
 import org.apache.commons.lang3.JavaVersion;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
+import org.dom4j.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationListener;
 
 import javax.annotation.Nullable;
 import java.lang.invoke.MethodHandle;
@@ -34,7 +39,9 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import static io.jmix.flowui.sys.ValuePathHelper.pathPrefix;
 import static java.lang.reflect.Proxy.newProxyInstance;
 import static org.springframework.core.annotation.AnnotatedElementUtils.findMergedAnnotation;
 
@@ -52,27 +59,25 @@ public class UiControllerDependencyInjector {
         this.reflectionInspector = reflectionInspector;
     }
 
-    public void inject(Screen controller) {
-        ScreenIntrospectionData screenIntrospectionData =
-                reflectionInspector.getScreenIntrospectionData(controller.getClass());
+    public void inject(View<?> controller) {
+        ViewIntrospectionData viewIntrospectionData =
+                reflectionInspector.getViewIntrospectionData(controller.getClass());
 
-        injectElements(controller, screenIntrospectionData);
-        initSubscribeListeners(controller, screenIntrospectionData);
-        initInstallMethods(controller, screenIntrospectionData);
-
-        // todo rp Spring Application event listeners in Screen do not work, implement?
-//        initUiEventListeners(frameOwner, screenIntrospectionData);
+        injectElements(controller, viewIntrospectionData);
+        initSubscribeListeners(controller, viewIntrospectionData);
+        initInstallMethods(controller, viewIntrospectionData);
+        initUiEventListeners(controller, viewIntrospectionData);
     }
 
-    protected void injectElements(Screen controller, ScreenIntrospectionData screenIntrospectionData) {
-        List<InjectElement> injectElements = screenIntrospectionData.getInjectElements();
+    protected void injectElements(View<?> controller, ViewIntrospectionData viewIntrospectionData) {
+        List<InjectElement> injectElements = viewIntrospectionData.getInjectElements();
 
         for (InjectElement entry : injectElements) {
             doInjection(entry, controller);
         }
     }
 
-    protected void doInjection(InjectElement injectElement, Screen controller) {
+    protected void doInjection(InjectElement injectElement, View<?> controller) {
         String name = getInjectionName(injectElement);
         Class<?> type = getInjectionType(injectElement);
 
@@ -87,7 +92,7 @@ public class UiControllerDependencyInjector {
 
     protected String getInjectionName(InjectElement injectElement) {
         AnnotatedElement element = injectElement.getElement();
-        Class annotationClass = injectElement.getAnnotationClass();
+        Class<?> annotationClass = injectElement.getAnnotationClass();
 
         String name = null;
         if (annotationClass == ComponentId.class) {
@@ -127,48 +132,89 @@ public class UiControllerDependencyInjector {
     }
 
     @Nullable
-    protected Object getInjectedInstance(Class<?> type, String name, InjectElement injectElement, Screen controller) {
+    protected Object getInjectedInstance(Class<?> type, String name, InjectElement injectElement, View<?> controller) {
+        // TODO: gg, exception?
+        if (!(controller.getContent() instanceof EnhancedHasComponents)) {
+            return null;
+        }
+
         AnnotatedElement element = injectElement.getElement();
-        Class annotationClass = injectElement.getAnnotationClass();
+        Class<?> annotationClass = injectElement.getAnnotationClass();
+
+        EnhancedHasComponents content = ((EnhancedHasComponents) controller.getContent());
 
         if (Component.class.isAssignableFrom(type)) {
             /// if legacy frame - inject controller
-            Optional<Component> component = controller.getContent().findComponent(name);
+            Optional<Component> component = content.findComponent(name);
             // Injecting a UI component
             // TODO: gg, rework after all types will be handled
             return component.orElse(null);
         } else if (InstanceContainer.class.isAssignableFrom(type)) {
             // Injecting a container
-            ScreenData data = UiControllerUtils.getScreenData(controller);
+            ViewData data = UiControllerUtils.getViewData(controller);
             return data.getContainer(name);
         } else if (DataLoader.class.isAssignableFrom(type)) {
             // Injecting a loader
-            ScreenData data = UiControllerUtils.getScreenData(controller);
+            ViewData data = UiControllerUtils.getViewData(controller);
             return data.getLoader(name);
         } else if (Action.class.isAssignableFrom(type)) {
             // Injecting an action
             String[] elements = ValuePathHelper.parse(name);
             if (elements.length == 1) {
-                ScreenActions screenActions = UiControllerUtils.getScreenActions(controller);
-                return screenActions.getAction(name);
+                ViewActions viewActions = UiControllerUtils.getViewActions(controller);
+                return viewActions.getAction(name);
             }
 
-            String prefix = ValuePathHelper.pathPrefix(elements);
-            Optional<HasActions> hasActions = controller.getContent()
+            String prefix = pathPrefix(elements);
+            Optional<HasActions> hasActions = content
                     .findComponent(prefix)
                     .filter(c -> c instanceof HasActions)
                     .map(c -> ((HasActions) c));
             if (hasActions.isPresent()) {
                 return hasActions.get().getAction(elements[elements.length - 1]);
             }
+        } else if (Facet.class.isAssignableFrom(type)) {
+            String[] elements = ValuePathHelper.parse(name);
+            if (elements.length != 1) {
+                throw new IllegalStateException(
+                        String.format("Can't inject %s. Incorrect path: '%s'", Facet.class.getSimpleName(), name));
+            }
+
+            return UiControllerUtils.getViewFacets(controller).getFacet(name);
+        } else if (MessageBundle.class == type) {
+            return createMessageBundle(controller);
         }
 
         // TODO: gg, handle other types
+        // TODO: gg, DataContext?
 
         return null;
     }
 
-    protected void assignValue(AnnotatedElement element, Object value, Screen controller) {
+    protected MessageBundle createMessageBundle(View<?> controller) {
+        MessageBundle messageBundle = applicationContext.getBean(MessageBundle.class);
+        messageBundle.setMessageGroup(UiControllerUtils.getPackage(controller.getClass()));
+
+        if (!controller.getId().isPresent()) {
+            return messageBundle;
+        }
+
+        ViewInfo viewInfo = applicationContext.getBean(ViewRegistry.class)
+                .getViewInfo(controller.getId().get());
+
+        ViewXmlLoader viewXmlLoader = applicationContext.getBean(ViewXmlLoader.class);
+        Optional<String> templatePath = viewInfo.getTemplatePath();
+        Element element = templatePath.map(viewXmlLoader::load).orElse(null);
+        if (element != null) {
+            String messagesGroup = element.attributeValue("messagesGroup");
+            if (!Strings.isNullOrEmpty(messagesGroup)) {
+                messageBundle.setMessageGroup(messagesGroup);
+            }
+        }
+        return messageBundle;
+    }
+
+    protected void assignValue(AnnotatedElement element, Object value, View<?> controller) {
         if (element instanceof Field) {
             Field field = (Field) element;
 
@@ -191,8 +237,23 @@ public class UiControllerDependencyInjector {
         }
     }
 
-    protected void initInstallMethods(Screen controller, ScreenIntrospectionData screenIntrospectionData) {
-        List<AnnotatedMethod<Install>> installMethods = screenIntrospectionData.getInstallMethods();
+    protected void initUiEventListeners(View<?> controller, ViewIntrospectionData viewIntrospectionData) {
+        List<Method> eventListenerMethods = viewIntrospectionData.getEventListenerMethods();
+
+        if (!eventListenerMethods.isEmpty()) {
+            List<ApplicationListener<?>> listeners = eventListenerMethods.stream()
+                    .map(m -> new UiEventListenerMethodAdapter(controller, controller.getClass(), m, applicationContext))
+                    .collect(Collectors.toList());
+
+            UiEventsManager eventsMulticaster = applicationContext.getBean(UiEventsManager.class);
+            for (ApplicationListener<?> listener : listeners) {
+                eventsMulticaster.addApplicationListener(controller, listener);
+            }
+        }
+    }
+
+    protected void initInstallMethods(View<?> controller, ViewIntrospectionData viewIntrospectionData) {
+        List<AnnotatedMethod<Install>> installMethods = viewIntrospectionData.getInstallMethods();
 
         for (AnnotatedMethod<Install> annotatedMethod : installMethods) {
             Install annotation = annotatedMethod.getAnnotation();
@@ -240,8 +301,8 @@ public class UiControllerDependencyInjector {
         }
     }
 
-    protected MethodHandle getInstallTargetSetterMethod(Install annotation, Screen controller, Class<?> instanceClass,
-                                                        Method provideMethod) {
+    protected MethodHandle getInstallTargetSetterMethod(Install annotation, View<?> controller,
+                                                        Class<?> instanceClass, Method provideMethod) {
         String subjectProperty;
         if (Strings.isNullOrEmpty(annotation.subject()) && annotation.type() == Object.class) {
             InstallSubject installSubjectAnnotation = findMergedAnnotation(instanceClass, InstallSubject.class);
@@ -279,7 +340,7 @@ public class UiControllerDependencyInjector {
     }
 
     @Nullable
-    protected Object getInstallTargetInstance(Screen controller, Install annotation) {
+    protected Object getInstallTargetInstance(View<?> controller, Install annotation) {
         Object targetInstance;
         String target = UiDescriptorUtils.getInferredProvideId(annotation);
         if (Strings.isNullOrEmpty(target)) {
@@ -290,19 +351,8 @@ public class UiControllerDependencyInjector {
                 case CONTROLLER:
                     targetInstance = controller;
                     break;
-
-                /*case PARENT_CONTROLLER:
-                    if (frameOwner instanceof Screen) {
-                        throw new DevelopmentException(
-                                String.format("Screen %s cannot use @Install with target = PARENT_CONTROLLER",
-                                        frame.getId())
-                        );
-                    }
-                    targetInstance = ((ScreenFragment) frameOwner).getHostController();
-                    break;*/
-
                 case DATA_CONTEXT:
-                    targetInstance = UiControllerUtils.getScreenData(controller).getDataContext();
+                    targetInstance = UiControllerUtils.getViewData(controller).getDataContext();
                     break;
 
                 default:
@@ -310,16 +360,16 @@ public class UiControllerDependencyInjector {
                             Install.class.getSimpleName(), annotation.target()));
             }
         } else if (annotation.target() == Target.DATA_LOADER) {
-            targetInstance = UiControllerUtils.getScreenData(controller).getLoader(target);
+            targetInstance = UiControllerUtils.getViewData(controller).getLoader(target);
         } else if (annotation.target() == Target.DATA_CONTAINER) {
-            targetInstance = UiControllerUtils.getScreenData(controller).getContainer(target);
+            targetInstance = UiControllerUtils.getViewData(controller).getContainer(target);
         } else {
             targetInstance = findMethodTarget(controller, target);
         }
         return targetInstance;
     }
 
-    protected Object createInstallHandler(Screen controller, Method method, Class<?> targetObjectType) {
+    protected Object createInstallHandler(View<?> controller, Method method, Class<?> targetObjectType) {
         if (targetObjectType == Function.class) {
             return new InstalledFunction(controller, method);
         } else if (targetObjectType == Consumer.class) {
@@ -338,10 +388,10 @@ public class UiControllerDependencyInjector {
         }
     }
 
-    protected void initSubscribeListeners(Screen controller, ScreenIntrospectionData screenIntrospectionData) {
-        Class<? extends Screen> clazz = controller.getClass();
+    protected void initSubscribeListeners(View<?> controller, ViewIntrospectionData viewIntrospectionData) {
+        Class<? extends View> clazz = controller.getClass();
 
-        List<AnnotatedMethod<Subscribe>> eventListenerMethods = screenIntrospectionData.getSubscribeMethods();
+        List<AnnotatedMethod<Subscribe>> eventListenerMethods = viewIntrospectionData.getSubscribeMethods();
 
         for (AnnotatedMethod<Subscribe> annotatedMethod : eventListenerMethods) {
             Method method = annotatedMethod.getMethod();
@@ -354,7 +404,7 @@ public class UiControllerDependencyInjector {
 
             Object eventTarget = null;
 
-            ScreenData screenData = UiControllerUtils.getScreenData(controller);
+            ViewData viewData = UiControllerUtils.getViewData(controller);
 
             if (Strings.isNullOrEmpty(target)) {
                 switch (annotation.target()) {
@@ -363,7 +413,7 @@ public class UiControllerDependencyInjector {
                         eventTarget = controller;
                         break;
                     case DATA_CONTEXT:
-                        eventTarget = screenData.getDataContext();
+                        eventTarget = viewData.getDataContext();
                         break;
                     default:
                         throw new UnsupportedOperationException(String.format("Unsupported @%s target %s",
@@ -376,13 +426,13 @@ public class UiControllerDependencyInjector {
                         eventTarget = findMethodTarget(controller, target);
                         break;
                     case DATA_LOADER:
-                        if (screenData.getLoaderIds().contains(target)) {
-                            eventTarget = screenData.getLoader(target);
+                        if (viewData.getLoaderIds().contains(target)) {
+                            eventTarget = viewData.getLoader(target);
                         }
                         break;
                     case DATA_CONTAINER:
-                        if (screenData.getContainerIds().contains(target)) {
-                            eventTarget = screenData.getContainer(target);
+                        if (viewData.getContainerIds().contains(target)) {
+                            eventTarget = viewData.getContainer(target);
                         }
                         break;
                     default:
@@ -426,12 +476,12 @@ public class UiControllerDependencyInjector {
         }
     }
 
-    protected ComponentEventListener getComponentEventListener(Screen controller,
-                                                               Class<? extends Screen> clazz,
+    protected ComponentEventListener getComponentEventListener(View<?> controller,
+                                                               Class<? extends View> clazz,
                                                                AnnotatedMethod<Subscribe> annotatedMethod,
                                                                Class<?> eventType) {
         ComponentEventListener listener;
-        // If screen controller class was hot-deployed, then it will be loaded
+        // If view controller class was hot-deployed, then it will be loaded
         // by different class loader. This will make impossible to create lambda
         // using LambdaMetaFactory for producing the listener method in Java 17+
         if (SystemUtils.isJavaVersionAtMost(JavaVersion.JAVA_16) ||
@@ -460,12 +510,12 @@ public class UiControllerDependencyInjector {
         return listener;
     }
 
-    protected Consumer getConsumerListener(Screen controller,
-                                           Class<? extends Screen> clazz,
-                                           AnnotatedMethod<Subscribe> annotatedMethod,
-                                           Class<?> eventType) {
-        Consumer listener;
-        // If screen controller class was hot-deployed, then it will be loaded
+    protected Consumer<?> getConsumerListener(View<?> controller,
+                                              Class<? extends View> clazz,
+                                              AnnotatedMethod<Subscribe> annotatedMethod,
+                                              Class<?> eventType) {
+        Consumer<?> listener;
+        // If view controller class was hot-deployed, then it will be loaded
         // by different class loader. This will make impossible to create lambda
         // using LambdaMetaFactory for producing the listener method in Java 17+
         if (SystemUtils.isJavaVersionAtMost(JavaVersion.JAVA_16) ||
@@ -473,7 +523,7 @@ public class UiControllerDependencyInjector {
             MethodHandle consumerMethodFactory =
                     reflectionInspector.getConsumerMethodFactory(clazz, annotatedMethod, eventType);
             try {
-                listener = (Consumer) consumerMethodFactory.invoke(controller);
+                listener = (Consumer<?>) consumerMethodFactory.invoke(controller);
             } catch (Error e) {
                 throw e;
             } catch (Throwable e) {
@@ -494,26 +544,33 @@ public class UiControllerDependencyInjector {
     }
 
     @Nullable
-    protected Object findMethodTarget(Screen controller, String target) {
+    protected Object findMethodTarget(View<?> controller, String target) {
+        // TODO: gg, exception?
+        if (!(controller.getContent() instanceof EnhancedHasComponents)) {
+            return null;
+        }
+
+        ViewFacets viewFacets = UiControllerUtils.getViewFacets(controller);
+
         String[] elements = ValuePathHelper.parse(target);
-        ScreenLayout screenLayout = controller.getContent();
+        EnhancedHasComponents viewLayout = ((EnhancedHasComponents) controller.getContent());
         if (elements.length == 1) {
-            ScreenActions screenActions = UiControllerUtils.getScreenActions(controller);
-            Action action = screenActions.getAction(target);
+            ViewActions viewActions = UiControllerUtils.getViewActions(controller);
+            Action action = viewActions.getAction(target);
             if (action != null) {
                 return action;
             }
 
-            Optional<Component> component = screenLayout.findComponent(target);
+            Optional<Component> component = viewLayout.findComponent(target);
             if (component.isPresent()) {
                 return component.get();
             }
 
-//            return controller.getFacet(target);
+            return viewFacets.getFacet(target);
         } else if (elements.length > 1) {
             String id = elements[elements.length - 1];
 
-            Optional<Component> componentOpt = screenLayout.findComponent(ValuePathHelper.pathPrefix(elements));
+            Optional<Component> componentOpt = viewLayout.findComponent(pathPrefix(elements));
 
             if (componentOpt.isPresent()) {
                 Component component = componentOpt.get();
@@ -531,16 +588,10 @@ public class UiControllerDependencyInjector {
                         return childComponent.get();
                     }
                 }
-
-                /*if (component instanceof Fragment) {
-                    Facet facet = ((Fragment) component).getFacet(id);
-                    if (facet != null) {
-                        return facet;
-                    }
-                }*/
             }
 
-            /*Facet facet = controller.getFacet(pathPrefix(elements));
+            // TODO: gg, do we need HasSubParts?
+            /*Facet facet = viewFacets.getFacet(pathPrefix(elements));
             if (facet instanceof HasSubParts) {
                 return ((HasSubParts) facet).getSubPart(id);
             }*/

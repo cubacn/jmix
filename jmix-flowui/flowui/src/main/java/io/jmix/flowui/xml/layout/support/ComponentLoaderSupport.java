@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2022 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,30 @@
 
 package io.jmix.flowui.xml.layout.support;
 
+import com.google.common.base.Strings;
 import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.BoxSizing;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.ThemableLayout;
 import com.vaadin.flow.component.textfield.*;
 import com.vaadin.flow.data.value.HasValueChangeMode;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import io.jmix.core.common.util.ReflectionHelper;
+import io.jmix.core.impl.DatatypeRegistryImpl;
+import io.jmix.core.metamodel.datatype.Datatype;
 import io.jmix.flowui.component.HasRequired;
+import io.jmix.flowui.component.SupportsDatatype;
+import io.jmix.flowui.component.SupportsValidation;
+import io.jmix.flowui.component.formatter.FormatterLoadFactory;
+import io.jmix.flowui.component.validation.Validator;
+import io.jmix.flowui.component.validation.ValidatorLoadFactory;
 import io.jmix.flowui.exception.GuiDevelopmentException;
+import io.jmix.flowui.kit.component.HasAutofocus;
+import io.jmix.flowui.kit.component.HasPlaceholder;
+import io.jmix.flowui.kit.component.HasTitle;
+import io.jmix.flowui.kit.component.SupportsFormatter;
+import io.jmix.flowui.kit.component.formatter.Formatter;
 import io.jmix.flowui.xml.layout.ComponentLoader.Context;
 import io.jmix.flowui.xml.layout.loader.PropertyShortcutLoader;
 import org.apache.commons.lang3.StringUtils;
@@ -32,6 +48,7 @@ import org.dom4j.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Scope;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -40,27 +57,28 @@ import javax.annotation.Nullable;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 @Component("flowui_ComponentLoaderSupport")
 @Scope(BeanDefinition.SCOPE_PROTOTYPE)
-public class ComponentLoaderSupport {
+public class ComponentLoaderSupport implements ApplicationContextAware {
 
     protected Context context;
     protected LoaderSupport loaderSupport;
     protected ApplicationContext applicationContext;
     protected Environment environment;
-
-    public ComponentLoaderSupport() {
-    }
+    protected DatatypeRegistryImpl datatypeRegistry;
 
     public ComponentLoaderSupport(Context context) {
         this.context = context;
     }
 
+    @Override
     public void setApplicationContext(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
     }
 
+    @Autowired
     public void setEnvironment(Environment environment) {
         this.environment = environment;
     }
@@ -70,24 +88,86 @@ public class ComponentLoaderSupport {
         this.loaderSupport = loaderSupport;
     }
 
-    protected String loadResourceString(String message) {
+    @Autowired
+    public void setDatatypeRegistry(DatatypeRegistryImpl datatypeRegistry) {
+        this.datatypeRegistry = datatypeRegistry;
+    }
+
+    @Nullable
+    protected String loadResourceString(@Nullable String message) {
         return loaderSupport.loadResourceString(message, context.getMessageGroup());
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public void loadDatatype(SupportsDatatype<?> component, Element element) {
+        String dataTypeString = loaderSupport.loadString(element, "datatype").orElse(null);
+
+        if (dataTypeString == null) {
+            return;
+        }
+
+        Datatype datatype = datatypeRegistry.find(dataTypeString);
+        component.setDatatype(datatype);
+    }
+
+    public void loadSpacing(ThemableLayout layout, Element element) {
+        loaderSupport.loadBoolean(element, "spacing", layout::setSpacing);
+    }
+
+    public void loadMargin(ThemableLayout layout, Element element) {
+        loaderSupport.loadBoolean(element, "margin", layout::setMargin);
+    }
+
+    public void loadPadding(ThemableLayout layout, Element element) {
+        loaderSupport.loadBoolean(element, "padding", layout::setPadding);
+    }
+
+    public void loadBoxSizing(ThemableLayout layout, Element element) {
+        loaderSupport.loadEnum(element, BoxSizing.class, "boxSizing", layout::setBoxSizing);
+    }
+
+    public void loadThemableAttributes(ThemableLayout layout, Element element) {
+        loadSpacing(layout, element);
+        loadMargin(layout, element);
+        loadPadding(layout, element);
+        loadBoxSizing(layout, element);
+    }
+
+    public void loadAlignItems(FlexComponent component, Element element) {
+        loaderSupport.loadEnum(element, FlexComponent.Alignment.class, "alignItems", component::setAlignItems);
+    }
+
+    public void loadJustifyContent(FlexComponent component, Element element) {
+        loaderSupport.loadEnum(element, FlexComponent.JustifyContentMode.class, "justifyContent", component::setJustifyContentMode);
+    }
+
+    public void loadFlexibleAttributes(FlexComponent component, Element element) {
+        loadAlignItems(component, element);
+        loadJustifyContent(component, element);
+        loadEnabled(component, element);
+        loadClassName(component, element);
+        loadSizeAttributes(component, element);
+    }
+
     public void loadText(HasText component, Element element) {
-        loaderSupport.loadString(element, "text", component::setText);
+        loaderSupport.loadResourceString(element, "text", context.getMessageGroup(), component::setText);
     }
 
-    public void loadRequiredMessage(HasRequired resultComponent, Context context) {
-        loaderSupport.loadResourceString("requiredMessage", context.getMessageGroup(), resultComponent::setRequiredMessage);
+    public void loadTitle(HasTitle component, Element element, Context context) {
+        loaderSupport.loadResourceString(element, "title", context.getMessageGroup(), component::setTitle);
     }
 
-    public void loadThemeName(HasTheme component, Element element) {
-        loaderSupport.loadString(element, "themeName")
-                .ifPresent(themesString -> {
-                    String[] themes = themesString.split(",");
-                    component.addThemeNames(themes);
-                });
+    public void loadLabel(HasLabel component, Element element) {
+        loaderSupport.loadResourceString(element, "label", context.getMessageGroup(), component::setLabel);
+    }
+
+    public void loadRequired(HasRequired resultComponent, Element element, Context context) {
+        loaderSupport.loadResourceString(element,
+                "requiredMessage",
+                context.getMessageGroup(),
+                resultComponent::setRequiredMessage
+        );
+        loaderSupport.loadBoolean(element, "required", resultComponent::setRequired);
     }
 
     public void loadValueChangeMode(HasValueChangeMode component, Element element) {
@@ -95,51 +175,75 @@ public class ComponentLoaderSupport {
         loaderSupport.loadInteger(element, "valueChangeTimeout", component::setValueChangeTimeout);
     }
 
+    public void loadThemeName(HasTheme component, Element element) {
+        loaderSupport.loadString(element, "themeName")
+                .ifPresent(themeString -> split(themeString, component::addThemeName));
+    }
+
     public void loadClassName(HasStyle component, Element element) {
         loaderSupport.loadString(element, "className")
-                .ifPresent(styleNameString -> {
-                    String[] classNames = styleNameString.split(",");
-                    component.addClassNames(classNames);
-                });
+                .ifPresent(classNameString -> split(classNameString, component::addClassName));
     }
 
     public void loadBadge(HasText component, Element element) {
         loaderSupport.loadString(element, "themeName")
                 .ifPresent(badgeString -> {
-                    String[] badgeStyles = badgeString.split(",");
                     component.getElement().getThemeList().add("badge");
-                    component.getElement().getThemeList().addAll(List.of(badgeStyles));
+                    split(badgeString, component.getElement().getThemeList()::add);
                 });
     }
 
-    //TODO: kremnevda, components can use ReadOnly but not Required 13.04.2022
     public void loadValueAndElementAttributes(HasValueAndElement<?, ?> component, Element element) {
         loaderSupport.loadBoolean(element, "readOnly", component::setReadOnly);
         loaderSupport.loadBoolean(element, "requiredIndicatorVisible", component::setRequiredIndicatorVisible);
     }
 
+    public void loadValidationAttributes(HasValidation component, Element element, Context context) {
+        loaderSupport.loadBoolean(element, "invalid", component::setInvalid);
+        loaderSupport.loadResourceString(element, "errorMessage", context.getMessageGroup(),
+                component::setErrorMessage);
+
+        if (component instanceof SupportsValidation<?>) {
+            loadValidation((SupportsValidation<?>) component, element);
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public void loadFormatter(SupportsFormatter component, Element element) {
+        loadFormatter(element)
+                .ifPresent(component::setFormatter);
+    }
+
     public void loadHelperText(HasHelper component, Element element) {
-        loaderSupport.loadString(element, "helperText", component::setHelperText);
+        loaderSupport.loadResourceString(element, "helperText", context.getMessageGroup(), component::setHelperText);
     }
 
-    public void loadAutoComplete(HasAutocomplete component, Element element) {
-        loaderSupport.loadEnum(element, Autocomplete.class, "autoComplete", component::setAutocomplete);
+    public void loadPlaceholder(HasPlaceholder component, Element element) {
+        loaderSupport.loadResourceString(element, "placeholder", context.getMessageGroup(), component::setPlaceholder);
     }
 
-    public void loadAutoCapitalize(HasAutocapitalize component, Element element) {
-        loaderSupport.loadEnum(element, Autocapitalize.class, "autoCapitalize", component::setAutocapitalize);
+    public void loadAutofocus(HasAutofocus component, Element element) {
+        loaderSupport.loadBoolean(element, "autofocus", component::setAutofocus);
     }
 
-    public void loadAutoCorrect(HasAutocorrect resultComponent, Element element) {
-        loaderSupport.loadBoolean(element, "autoCorrect", resultComponent::setAutocorrect);
+    public void loadAutocomplete(HasAutocomplete component, Element element) {
+        loaderSupport.loadEnum(element, Autocomplete.class, "autocomplete", component::setAutocomplete);
+    }
+
+    public void loadAutocapitalize(HasAutocapitalize component, Element element) {
+        loaderSupport.loadEnum(element, Autocapitalize.class, "autocapitalize", component::setAutocapitalize);
+    }
+
+    public void loadAutocorrect(HasAutocorrect component, Element element) {
+        loaderSupport.loadBoolean(element, "autocorrect", component::setAutocorrect);
     }
 
     public void loadEnabled(HasEnabled component, Element element) {
-        loaderSupport.loadBoolean(element, "enable", component::setEnabled);
+        loaderSupport.loadBoolean(element, "enabled", component::setEnabled);
     }
 
     public void loadAriaLabel(HasAriaLabel component, Element element) {
-        loaderSupport.loadString(element, "ariaLabel", component::setAriaLabel);
+        loaderSupport.loadResourceString(element, "ariaLabel", context.getMessageGroup(), component::setAriaLabel);
     }
 
     public void loadWhiteSpace(HasText component, Element element) {
@@ -284,5 +388,53 @@ public class ComponentLoaderSupport {
             }
         }
         return null;
+    }
+
+    protected void split(String names, Consumer<String> setter) {
+        for (String split : names.split(",")) {
+            String trimmed = split.trim();
+
+            if (!Strings.isNullOrEmpty(trimmed)) {
+                setter.accept(trimmed);
+            }
+        }
+    }
+
+    protected Optional<Formatter<?>> loadFormatter(Element element) {
+        Element formatterElement = element.element("formatter");
+        if (formatterElement == null) {
+            return Optional.empty();
+        }
+
+        int size = formatterElement.elements().size();
+        if (size != 1) {
+            throw new GuiDevelopmentException("Only one formatter needs to be defined. " +
+                    "The current number of formatters is " + size, context);
+        }
+
+        Element childElement = formatterElement.elements().get(0);
+        FormatterLoadFactory loadFactory = applicationContext.getBean(FormatterLoadFactory.class, context);
+        if (loadFactory.isFormatter(childElement)) {
+            return Optional.ofNullable(loadFactory.createFormatter(childElement));
+        }
+
+        return Optional.empty();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    protected void loadValidation(SupportsValidation<?> component, Element element) {
+        Element validatorsHolder = element.element("validators");
+        if (validatorsHolder != null) {
+            List<Element> validators = validatorsHolder.elements();
+
+            ValidatorLoadFactory loadFactory = applicationContext.getBean(ValidatorLoadFactory.class);
+
+            for (Element validatorElem : validators) {
+                Validator validator = loadFactory.createValidator(validatorElem, context.getMessageGroup());
+                if (validator != null) {
+                    component.addValidator(validator);
+                }
+            }
+        }
     }
 }

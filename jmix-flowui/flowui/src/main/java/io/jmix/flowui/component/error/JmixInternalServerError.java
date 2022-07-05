@@ -2,7 +2,7 @@ package io.jmix.flowui.component.error;
 
 import com.vaadin.flow.router.*;
 import com.vaadin.flow.server.ErrorEvent;
-import io.jmix.flowui.exception.ExceptionHandlers;
+import io.jmix.flowui.exception.UiExceptionHandlers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,38 +14,38 @@ public class JmixInternalServerError extends InternalServerError {
 
     private static final Logger log = LoggerFactory.getLogger(JmixInternalServerError.class);
 
-    protected ExceptionHandlers exceptionHandlers;
+    protected UiExceptionHandlers uiExceptionHandlers;
 
-    public JmixInternalServerError(ExceptionHandlers exceptionHandlers) {
-        this.exceptionHandlers = exceptionHandlers;
+    public JmixInternalServerError(UiExceptionHandlers uiExceptionHandlers) {
+        this.uiExceptionHandlers = uiExceptionHandlers;
     }
 
     @Override
     public int setErrorParameter(BeforeEnterEvent event, ErrorParameter<Exception> parameter) {
-        forwardToPreviousScreen(event);
+        forwardToPreviousView(event);
 
-        exceptionHandlers.error(new ErrorEvent(parameter.getException()));
+        uiExceptionHandlers.error(new ErrorEvent(parameter.getException()));
 
         return HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
     }
 
-    protected void forwardToPreviousScreen(BeforeEnterEvent event) {
+    protected void forwardToPreviousView(BeforeEnterEvent event) {
         Location location = event.getLocation();
         if (location.getSegments().size() > 1) {
             event.forwardTo(location.getFirstSegment());
         } else {
             RouteConfiguration.forSessionScope().getRoute(location.getPath())
                     .ifPresentOrElse(
-                            screenClass -> navigateToParentLayout(screenClass, event),
+                            viewClass -> navigateToParentLayout(viewClass, event),
                             () -> log.info("Cannot navigate to the parent layout"));
         }
     }
 
-    protected void navigateToParentLayout(Class<?> screenClass, BeforeEnterEvent event) {
+    protected void navigateToParentLayout(Class<?> viewClass, BeforeEnterEvent event) {
         RouteConfiguration routeConfiguration = RouteConfiguration.forSessionScope();
         List<RouteData> routes = routeConfiguration.getAvailableRoutes();
 
-        RouteData parentRouteData = findRouteData(screenClass, routes)
+        RouteData parentRouteData = findRouteData(viewClass, routes)
                 .flatMap(routeData -> findRouteData(routeData.getParentLayout(), routes))
                 .orElse(null);
 
@@ -55,7 +55,7 @@ public class JmixInternalServerError extends InternalServerError {
             return;
         }
 
-        log.info("Cannot navigate to the parent layout {}", screenClass.getName());
+        log.info("Cannot navigate to the parent layout {}", viewClass.getName());
     }
 
     protected Optional<RouteData> findRouteData(Class<?> target, List<RouteData> routes) {

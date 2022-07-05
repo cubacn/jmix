@@ -42,6 +42,41 @@
     <Match>
         <Bug pattern="SE_BAD_FIELD"/> <!-- We do not check serializable fields in UI components -->
     </Match>
+    <Match>
+        <Bug pattern="MC_OVERRIDABLE_METHOD_CALL_IN_CLONE"/>
+    </Match>
+    <Match>
+        <Or>
+            <Bug pattern="THROWS_METHOD_THROWS_RUNTIMEEXCEPTION"/>
+            <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION"/>
+            <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_THROWABLE"/>
+        </Or>
+    </Match>
+
+    <!-- False positives (since Java 11) -->
+    <Match>
+        <Class name="io.jmix.core.impl.ResourcesImpl"/>
+        <Method name="getResourceAsString"/>
+        <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.jmix.ui.sys.vaadin.JmixUIProvider"/>
+        <Method name="getWidgetsetInfo"/>
+        <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.jmix.bpmui.screen.dmndecisiontable.DmnDecisionTableBrowse"/>
+        <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.jmix.bpmui.screen.processdefinition.ProcessDefinitionBrowse"/>
+        <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="io.jmix.securityui.screen.rowlevelpolicy.RowLevelPolicyModelEdit"/>
+        <Method name="onTestBtnClick"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
 
     <!-- Ignored CUBA compatibility module -->
     <Match>
@@ -63,9 +98,14 @@
         <Package name="~io\.jmix\.graphql.*"/>
     </Match>
 
-    <!-- todo Temporarily ignored GraphQL module -->
+    <!-- todo Temporarily ignored UI testassist module -->
     <Match>
         <Package name="~io\.jmix\.ui\.testassist.*"/>
+    </Match>
+
+    <!-- todo Temporarily ignored FlowUI module -->
+    <Match>
+        <Package name="~io\.jmix\.flowui.*"/>
     </Match>
 
     <!-- Ignored problems in classes -->
@@ -87,6 +127,21 @@
             <Class name="io.jmix.ui.model.impl.ObservableList"/>
             <Class name="io.jmix.ui.model.impl.ObservableSet"/>
         </Or>
+    </Match>
+
+    <Match>
+        <Bug pattern="MS_EXPOSE_REP"/>
+        <Class name="io.jmix.reports.ReportPrintHelper"/>
+    </Match>
+
+    <Match>
+        <Bug pattern="MF_CLASS_MASKS_FIELD"/>
+        <Class name="io.jmix.dynattr.impl.DynAttrMetaProperty"/>
+    </Match>
+
+    <Match>
+        <Bug pattern="SSD_DO_NOT_USE_INSTANCE_LOCK_ON_SHARED_STATIC_DATA"/>
+        <Class name="io.jmix.reportsui.screen.report.wizard.template.generators.HtmlGenerator"/>
     </Match>
 
     <!--  Nullability  -->

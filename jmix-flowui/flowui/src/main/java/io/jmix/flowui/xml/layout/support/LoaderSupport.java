@@ -19,9 +19,9 @@ package io.jmix.flowui.xml.layout.support;
 import com.google.common.base.Strings;
 import io.jmix.core.MessageTools;
 import org.dom4j.Element;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -33,7 +33,6 @@ public class LoaderSupport {
 
     protected MessageTools messageTools;
 
-    @Autowired
     public LoaderSupport(MessageTools messageTools) {
         this.messageTools = messageTools;
     }
@@ -114,6 +113,11 @@ public class LoaderSupport {
                 .map(stringValue -> Enum.valueOf(type, stringValue));
     }
 
+    public Optional<String> loadResourceString(Element element, String attributeName, String messageGroup) {
+        return loadString(element, attributeName)
+                .map(stringValue -> loadResourceString(stringValue, messageGroup));
+    }
+
     public void loadString(Element element, String attributeName, Consumer<String> setter) {
         loadString(element, attributeName)
                 .ifPresent(setter);
@@ -140,11 +144,13 @@ public class LoaderSupport {
                 .ifPresent(setter);
     }
 
-    public void loadResourceString(String message, String messageGroup, Consumer<String> setter) {
-        setter.accept(loadResourceString(message, messageGroup));
+    public void loadResourceString(Element element, String attributeName, String messageGroup, Consumer<String> setter) {
+        loadResourceString(element, attributeName, messageGroup)
+                .ifPresent(setter);
     }
 
-    public String loadResourceString(String message, String messageGroup) {
+    @Nullable
+    protected String loadResourceString(@Nullable String message, String messageGroup) {
         if (Strings.isNullOrEmpty(message)) {
             return message;
         }

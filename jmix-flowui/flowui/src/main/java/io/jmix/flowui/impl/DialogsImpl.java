@@ -11,7 +11,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import io.jmix.core.Messages;
 import io.jmix.flowui.Dialogs;
-import io.jmix.flowui.FlowUiScreenProperties;
+import io.jmix.flowui.FlowUiViewProperties;
 import io.jmix.flowui.action.DialogAction;
 import io.jmix.flowui.kit.action.Action;
 import io.jmix.flowui.kit.component.KeyCombination;
@@ -25,11 +25,11 @@ import java.util.EnumSet;
 public class DialogsImpl implements Dialogs {
 
     protected Messages messages;
-    protected FlowUiScreenProperties flowUiScreenProperties;
+    protected FlowUiViewProperties flowUiViewProperties;
 
-    public DialogsImpl(Messages messages, FlowUiScreenProperties flowUiScreenProperties) {
+    public DialogsImpl(Messages messages, FlowUiViewProperties flowUiViewProperties) {
         this.messages = messages;
-        this.flowUiScreenProperties = flowUiScreenProperties;
+        this.flowUiViewProperties = flowUiViewProperties;
     }
 
     @Override
@@ -164,9 +164,22 @@ public class DialogsImpl implements Dialogs {
             return this;
         }
 
+        @Nullable
         @Override
         public String getThemeName() {
             return dialog.getThemeName();
+        }
+
+        @Override
+        public OptionDialogBuilder withClassName(@Nullable String className) {
+            dialog.setClassName(className);
+            return this;
+        }
+
+        @Nullable
+        @Override
+        public String getClassName() {
+            return dialog.getClassName();
         }
 
         @Override
@@ -281,10 +294,10 @@ public class DialogsImpl implements Dialogs {
 
 
                 if (action == firstCommitAction) {
-                    KeyCombination commitShortcut = KeyCombination.create(flowUiScreenProperties.getCommitShortcut());
+                    KeyCombination commitShortcut = KeyCombination.create(flowUiViewProperties.getCommitShortcut());
                     button.addClickShortcut(commitShortcut.getKey(), commitShortcut.getKeyModifiers());
                 } else if (action == firstDeclineAction) {
-                    KeyCombination closeShortcut = KeyCombination.create(flowUiScreenProperties.getCloseShortcut());
+                    KeyCombination closeShortcut = KeyCombination.create(flowUiViewProperties.getCloseShortcut());
                     button.addClickShortcut(closeShortcut.getKey(), closeShortcut.getKeyModifiers());
                 }
             }
@@ -334,7 +347,7 @@ public class DialogsImpl implements Dialogs {
                 okAction.actionPerform(dialog);
                 dialog.close();
             });
-            KeyCombination commitShortcut = KeyCombination.create(flowUiScreenProperties.getCommitShortcut());
+            KeyCombination commitShortcut = KeyCombination.create(flowUiViewProperties.getCommitShortcut());
             okButton.addClickShortcut(commitShortcut.getKey(), commitShortcut.getKeyModifiers());
             buttonsContainer.add(okButton);
 
@@ -414,9 +427,22 @@ public class DialogsImpl implements Dialogs {
             return this;
         }
 
+        @Nullable
         @Override
         public String getThemeName() {
             return dialog.getThemeName();
+        }
+
+        @Override
+        public MessageDialogBuilder withClassName(@Nullable String className) {
+            dialog.setClassName(className);
+            return this;
+        }
+
+        @Nullable
+        @Override
+        public String getClassName() {
+            return dialog.getClassName();
         }
 
         @Override

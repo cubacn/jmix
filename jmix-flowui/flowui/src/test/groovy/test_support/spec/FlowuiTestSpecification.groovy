@@ -1,6 +1,7 @@
 package test_support.spec
 
 import com.google.common.base.Strings
+import com.vaadin.flow.component.HasElement
 import com.vaadin.flow.component.UI
 import com.vaadin.flow.router.Route
 import com.vaadin.flow.router.RouteConfiguration
@@ -11,8 +12,9 @@ import com.vaadin.flow.spring.SpringServlet
 import com.vaadin.flow.spring.VaadinServletContextInitializer
 import io.jmix.core.impl.scanning.AnnotationScanMetadataReaderFactory
 import io.jmix.core.security.SystemAuthenticator
-import io.jmix.flowui.screen.Screen
-import io.jmix.flowui.screen.ScreenRegistry
+import io.jmix.flowui.ViewNavigators
+import io.jmix.flowui.view.ViewRegistry
+import io.jmix.flowui.view.View
 import io.jmix.flowui.sys.UiControllersConfiguration
 import org.apache.commons.lang3.ArrayUtils
 import org.springframework.beans.factory.annotation.Autowired
@@ -22,11 +24,7 @@ import org.springframework.test.context.ContextConfiguration
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import spock.lang.Specification
-import test_support.FlowuiTestConfiguration
-import test_support.TestServletContext
-import test_support.TestSpringServlet
-import test_support.TestVaadinRequest
-import test_support.TestVaadinSession
+import test_support.*
 
 import javax.servlet.ServletException
 
@@ -38,6 +36,9 @@ class FlowuiTestSpecification extends Specification {
 
     @Autowired
     ApplicationContext applicationContext
+
+    @Autowired
+    ViewNavigators screenNavigators
 
     // saving session and UI to avoid it be GC'ed
     protected VaadinSession vaadinSession
@@ -106,7 +107,7 @@ class FlowuiTestSpecification extends Specification {
         }
 
         def metadataReaderFactory = applicationContext.getBean(AnnotationScanMetadataReaderFactory.class)
-        ScreenRegistry windowConfig = applicationContext.getBean(ScreenRegistry.class)
+        ViewRegistry windowConfig = applicationContext.getBean(ViewRegistry.class)
 
         def configuration = new UiControllersConfiguration(applicationContext, metadataReaderFactory)
 
@@ -116,7 +117,7 @@ class FlowuiTestSpecification extends Specification {
         configuration.setBasePackages(Arrays.asList(screenBasePackages))
 
         try {
-            def configurationsField = getDeclaredField(ScreenRegistry.class,
+            def configurationsField = getDeclaredField(ViewRegistry.class,
                     "configurations", true)
             //noinspection unchecked
             def configurations = (Collection<UiControllersConfiguration>) configurationsField.get(windowConfig)
@@ -126,7 +127,7 @@ class FlowuiTestSpecification extends Specification {
 
             configurationsField.set(windowConfig, modifiedConfigurations)
 
-            getDeclaredField(ScreenRegistry.class, "initialized", true)
+            getDeclaredField(ViewRegistry.class, "initialized", true)
                     .set(windowConfig, false)
         } catch (IllegalAccessException e) {
             throw new RuntimeException("Cannot register screen packages", e)
@@ -140,10 +141,10 @@ class FlowuiTestSpecification extends Specification {
             return
         }
 
-        def screenRegistry = applicationContext.getBean(ScreenRegistry.class)
-        def screens = screenRegistry.getScreens()
+        def screenRegistry = applicationContext.getBean(ViewRegistry.class)
+        def screens = screenRegistry.getViewInfos()
         screens.forEach({
-            Class<? extends Screen> controllerClass = it.getControllerClass()
+            Class<? extends View> controllerClass = it.getControllerClass()
             Route route = controllerClass.getAnnotation(Route.class)
             if (route == null) {
                 return
@@ -157,5 +158,18 @@ class FlowuiTestSpecification extends Specification {
 
             routeConfiguration.setRoute(route.value(), controllerClass)
         })
+    }
+
+    protected <T extends View> T openScreen(Class<T> screen) {
+        def activeRouterTargetsChain = getRouterChain(screen)
+
+        activeRouterTargetsChain.get(0) as T
+    }
+
+    protected List<HasElement> getRouterChain(Class<View> screenClass) {
+        screenNavigators.view(screenClass)
+                .navigate()
+
+        UI.getCurrent().getInternals().getActiveRouterTargetsChain()
     }
 }

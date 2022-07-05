@@ -20,16 +20,11 @@ import io.jmix.flowui.component.textfield.JmixBigDecimalField;
 import io.jmix.flowui.xml.layout.loader.AbstractComponentLoader;
 import io.jmix.flowui.xml.layout.support.DataLoaderSupport;
 
+import java.math.BigDecimal;
+
 public class BigDecimalFieldLoader extends AbstractComponentLoader<JmixBigDecimalField> {
 
     protected DataLoaderSupport dataLoaderSupport;
-
-    public DataLoaderSupport getDataLoaderSupport() {
-        if (dataLoaderSupport == null) {
-            dataLoaderSupport = applicationContext.getBean(DataLoaderSupport.class, context);
-        }
-        return dataLoaderSupport;
-    }
 
     @Override
     protected JmixBigDecimalField createComponent() {
@@ -40,27 +35,33 @@ public class BigDecimalFieldLoader extends AbstractComponentLoader<JmixBigDecima
     public void loadComponent() {
         getDataLoaderSupport().loadData(resultComponent, element);
 
-        loadString(element, "title", resultComponent::setTitle);
-        loadString(element, "label", resultComponent::setLabel);
-        loadBoolean(element, "invalid", resultComponent::setInvalid);
+        loadDouble(element, "value")
+                .ifPresent(aDouble -> resultComponent.setValue(BigDecimal.valueOf(aDouble)));
         loadBoolean(element, "autofocus", resultComponent::setAutofocus);
-        loadBoolean(element, "autoSelect", resultComponent::setAutoselect);
-        loadString(element, "placeHolder", resultComponent::setPlaceholder);
+        loadBoolean(element, "autoselect", resultComponent::setAutoselect);
+        loadResourceString(element, "placeholder", context.getMessageGroup(), resultComponent::setPlaceholder);
         loadBoolean(element, "clearButtonVisible", resultComponent::setClearButtonVisible);
-        loadResourceString("errorMessage", context.getMessageGroup(), resultComponent::setErrorMessage);
-        loadBoolean(element, "requiredIndicatorVisible", resultComponent::setRequiredIndicatorVisible);
+        loadResourceString(element, "title", context.getMessageGroup(), resultComponent::setTitle);
 
-
+        componentLoader().loadLabel(resultComponent, element);
         componentLoader().loadEnabled(resultComponent, element);
         componentLoader().loadThemeName(resultComponent, element);
         componentLoader().loadClassName(resultComponent, element);
         componentLoader().loadHelperText(resultComponent, element);
-        componentLoader().loadAutoCorrect(resultComponent, element);
-        componentLoader().loadAutoComplete(resultComponent, element);
+        componentLoader().loadAutocorrect(resultComponent, element);
+        componentLoader().loadAutocomplete(resultComponent, element);
         componentLoader().loadSizeAttributes(resultComponent, element);
-        componentLoader().loadAutoCapitalize(resultComponent, element);
-        componentLoader().loadRequiredMessage(resultComponent, context);
+        componentLoader().loadAutocapitalize(resultComponent, element);
         componentLoader().loadValueChangeMode(resultComponent, element);
+        componentLoader().loadRequired(resultComponent, element, context);
         componentLoader().loadValueAndElementAttributes(resultComponent, element);
+        componentLoader().loadValidationAttributes(resultComponent, element, context);
+    }
+
+    protected DataLoaderSupport getDataLoaderSupport() {
+        if (dataLoaderSupport == null) {
+            dataLoaderSupport = applicationContext.getBean(DataLoaderSupport.class, context);
+        }
+        return dataLoaderSupport;
     }
 }

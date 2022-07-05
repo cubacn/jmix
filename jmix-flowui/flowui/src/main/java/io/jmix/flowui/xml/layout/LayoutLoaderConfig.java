@@ -16,20 +16,23 @@
 package io.jmix.flowui.xml.layout;
 
 import io.jmix.core.JmixOrder;
-import io.jmix.flowui.xml.layout.loader.ScreenLoader;
+import io.jmix.flowui.xml.layout.loader.MainViewLoader;
+import io.jmix.flowui.xml.layout.loader.ViewLoader;
 import org.dom4j.Element;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
 
-@SuppressWarnings("rawtypes")
+import static io.jmix.flowui.xml.layout.loader.MainViewLoader.MAIN_VIEW_ROOT;
+import static io.jmix.flowui.xml.layout.loader.ViewLoader.VIEW_ROOT;
+
 @Order(JmixOrder.LOWEST_PRECEDENCE - 10)
 @Component("flowui_LayoutLoaderConfig")
 public class LayoutLoaderConfig extends BaseLoaderConfig implements LoaderConfig {
 
-    protected Class<? extends ScreenLoader> screenLoader = ScreenLoader.class;
-//    protected Class<? extends FragmentLoader> fragmentLoader = FragmentLoader.class;
+    protected Class<? extends ViewLoader> viewLoader = ViewLoader.class;
+    protected Class<? extends MainViewLoader> mainViewLoader = MainViewLoader.class;
 
     @Override
     public boolean supports(Element element) {
@@ -41,20 +44,19 @@ public class LayoutLoaderConfig extends BaseLoaderConfig implements LoaderConfig
         return getLoader(element.getName());
     }
 
-    public Class<? extends ComponentLoader> getScreenLoader() {
-        return screenLoader;
-    }
-
     @Nullable
     @Override
-    public Class<? extends ComponentLoader> getScreenLoader(Element root) {
-        return screenLoader;
+    public Class<? extends ComponentLoader> getViewLoader(Element root) {
+        String name = root.getName();
+        switch (name) {
+            case VIEW_ROOT:
+                return viewLoader;
+            case MAIN_VIEW_ROOT:
+                return mainViewLoader;
+            default:
+                return null;
+        }
     }
-
-//    @Override
-//    public Class<? extends ComponentLoader> getFragmentLoader(Element root) {
-//        return fragmentLoader;
-//    }
 
     @Nullable
     public Class<? extends ComponentLoader> getLoader(String name) {

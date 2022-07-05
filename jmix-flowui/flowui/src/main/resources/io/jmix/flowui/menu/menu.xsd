@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) 2008-2016 Haulmont.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  ~
+  -->
+
+<xs:schema targetNamespace="http://jmix.io/schema/flowui/menu"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns="http://jmix.io/schema/flowui/menu"
+           elementFormDefault="qualified">
+
+    <xs:element name="menu-config" type="menuOrItem"/>
+
+    <xs:simpleType name="resourceString">
+        <xs:union>
+            <xs:simpleType>
+                <xs:restriction base="xs:string"/>
+            </xs:simpleType>
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="msg://"/>
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:union>
+    </xs:simpleType>
+
+    <xs:complexType name="menuOrItem">
+        <xs:sequence>
+            <xs:choice minOccurs="0" maxOccurs="unbounded">
+                <xs:element type="itemType" name="item"/>
+                <xs:element type="menuType" name="menu"/>
+            </xs:choice>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="menuType">
+        <xs:sequence>
+            <xs:choice minOccurs="0" maxOccurs="unbounded">
+                <xs:element type="itemType" name="item"/>
+                <xs:element type="menuType" name="menu"/>
+            </xs:choice>
+        </xs:sequence>
+        <xs:attribute type="xs:string" name="id"/>
+        <xs:attribute type="resourceString" name="title"/>
+        <xs:attribute type="resourceString" name="description"/>
+        <xs:attribute type="xs:string" name="className"/>
+        <xs:attribute type="xs:string" name="icon"/>
+        <xs:attribute type="xs:boolean" name="opened"/>
+        <xs:attributeGroup ref="insertGroup"/>
+    </xs:complexType>
+
+    <xs:complexType name="itemType">
+        <xs:attribute type="xs:string" name="id"/>
+        <xs:attribute type="xs:string" name="view"/>
+        <xs:attribute type="resourceString" name="title"/>
+        <xs:attribute type="resourceString" name="description"/>
+        <xs:attribute type="xs:string" name="className"/>
+        <xs:attribute type="xs:string" name="icon"/>
+        <xs:attributeGroup ref="insertGroup"/>
+    </xs:complexType>
+
+    <xs:attributeGroup name="insertGroup">
+        <xs:attribute type="xs:string" name="insertBefore"/>
+        <xs:attribute type="xs:string" name="insertAfter"/>
+    </xs:attributeGroup>
+</xs:schema>

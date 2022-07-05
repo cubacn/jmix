@@ -18,8 +18,8 @@ package io.jmix.flowui.xml.layout.loader.component;
 
 import com.vaadin.flow.component.details.Details;
 import io.jmix.flowui.xml.layout.ComponentLoader;
-import io.jmix.flowui.xml.layout.loader.AbstractContainerLoader;
 import io.jmix.flowui.xml.layout.loader.LayoutLoader;
+import io.jmix.flowui.xml.layout.loader.container.AbstractContainerLoader;
 import org.dom4j.Element;
 
 public class DetailsLoader extends AbstractContainerLoader<Details> {
@@ -38,7 +38,7 @@ public class DetailsLoader extends AbstractContainerLoader<Details> {
 
     @Override
     public void loadComponent() {
-        loadString(element, "summaryText", resultComponent::setSummaryText);
+        loadResourceString(element, "summaryText", context.getMessageGroup(), resultComponent::setSummaryText);
 
         componentLoader().loadEnabled(resultComponent, element);
         componentLoader().loadClassName(resultComponent, element);
@@ -48,7 +48,7 @@ public class DetailsLoader extends AbstractContainerLoader<Details> {
         loadSubComponents();
     }
 
-    private void createContent(Details resultComponent, Element element) {
+    protected void createContent(Details resultComponent, Element element) {
         LayoutLoader loader = getLayoutLoader();
 
         for (Element subElement : element.elements()) {

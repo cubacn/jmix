@@ -14,7 +14,6 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import io.jmix.core.common.util.Preconditions;
-import io.jmix.flowui.component.notification.JmixNotification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -95,7 +94,7 @@ public class Notifications {
 
         protected static final String WARNING_THEME_NAME = "warning";
 
-        protected JmixNotification notification;
+        protected Notification notification;
 
         protected String text;
         protected String title;
@@ -107,6 +106,7 @@ public class Notifications {
         protected Type type = Type.DEFAULT;
         protected Boolean closeable = null;
         protected NotificationVariant themeVariant;
+        protected String className;
 
         public NotificationBuilder(String text) {
             this.text = text;
@@ -152,6 +152,13 @@ public class Notifications {
             return this;
         }
 
+        public NotificationBuilder withClassName(String className) {
+            Preconditions.checkNotNullArgument(className);
+
+            this.className = className;
+            return this;
+        }
+
         public Notification.Position getPosition() {
             return position;
         }
@@ -184,6 +191,16 @@ public class Notifications {
         }
 
         @Nullable
+        public NotificationVariant getThemeVariant() {
+            return themeVariant;
+        }
+
+        @Nullable
+        public String getClassName() {
+            return className;
+        }
+
+        @Nullable
         public Component getComponent() {
             return component;
         }
@@ -195,6 +212,10 @@ public class Notifications {
 
             if (themeVariant != null) {
                 notification.addThemeVariants(themeVariant);
+            }
+
+            if (className != null) {
+                notification.addClassName(className);
             }
 
             if (position != null) {
@@ -302,8 +323,8 @@ public class Notifications {
             return closeable != null ? closeable : internalCloseable;
         }
 
-        protected JmixNotification createNotification() {
-            return new JmixNotification();
+        protected Notification createNotification() {
+            return new Notification();
         }
 
         protected String convertTypeToThemeName(Type type) {

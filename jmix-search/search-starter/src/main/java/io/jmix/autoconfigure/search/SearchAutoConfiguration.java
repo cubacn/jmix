@@ -30,18 +30,19 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.RestHighLevelClientBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Import;
 
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLContext;
 
-@Configuration
+@AutoConfiguration
 @Import({CoreConfiguration.class, DataConfiguration.class, SearchConfiguration.class})
 public class SearchAutoConfiguration {
 
@@ -74,7 +75,9 @@ public class SearchAutoConfiguration {
             return httpClientBuilder;
         });
 
-        return new RestHighLevelClient(restClientBuilder);
+        return new RestHighLevelClientBuilder(restClientBuilder.build())
+                .setApiCompatibilityMode(searchProperties.isRestHighLevelClientApiCompatibilityModeEnabled())
+                .build();
     }
 
     @Nullable
