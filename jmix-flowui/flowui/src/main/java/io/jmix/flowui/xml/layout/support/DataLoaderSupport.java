@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2022 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.jmix.flowui.model.CollectionContainer;
 import io.jmix.flowui.model.InstanceContainer;
 import io.jmix.flowui.model.ViewData;
 import io.jmix.flowui.view.View;
-import io.jmix.flowui.view.UiControllerUtils;
+import io.jmix.flowui.view.ViewControllerUtils;
 import io.jmix.flowui.xml.layout.ComponentLoader.ComponentContext;
 import io.jmix.flowui.xml.layout.ComponentLoader.Context;
 import io.jmix.flowui.xml.layout.LoaderResolver;
@@ -92,7 +92,7 @@ public class DataLoaderSupport {
             }
 
             View<?> view = getComponentContext().getView();
-            ViewData viewData = UiControllerUtils.getViewData(view);
+            ViewData viewData = ViewControllerUtils.getViewData(view);
 
             return Optional.of(viewData.getContainer(containerId));
         }
@@ -120,7 +120,7 @@ public class DataLoaderSupport {
         if (containerId != null) {
 
             View<?> view = getComponentContext().getView();
-            ViewData viewData = UiControllerUtils.getViewData(view);
+            ViewData viewData = ViewControllerUtils.getViewData(view);
             InstanceContainer<?> container = viewData.getContainer(containerId);
             if (!(container instanceof CollectionContainer)) {
                 throw new GuiDevelopmentException(String.format("Not a %s: %s",

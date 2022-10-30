@@ -1,35 +1,72 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.view;
 
 import com.google.common.base.Strings;
 import com.vaadin.flow.component.ComponentEvent;
 import com.vaadin.flow.component.ComponentEventListener;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.notification.Notification.Position;
 import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeLeaveEvent;
+import com.vaadin.flow.router.BeforeLeaveEvent.ContinueNavigationAction;
+import com.vaadin.flow.router.Location;
 import com.vaadin.flow.shared.Registration;
 import io.jmix.core.*;
+import io.jmix.core.accesscontext.InMemoryCrudEntityContext;
+import io.jmix.core.annotation.Internal;
 import io.jmix.core.common.util.Preconditions;
 import io.jmix.core.entity.EntityValues;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
-import io.jmix.flowui.FlowUiViewProperties;
+import io.jmix.flowui.FlowuiViewProperties;
 import io.jmix.flowui.Notifications;
+import io.jmix.flowui.accesscontext.FlowuiEntityContext;
 import io.jmix.flowui.component.validation.ValidationErrors;
 import io.jmix.flowui.component.validation.group.UiCrossFieldChecks;
 import io.jmix.flowui.model.*;
-import io.jmix.flowui.view.navigation.UrlIdSerializer;
 import io.jmix.flowui.util.OperationResult;
 import io.jmix.flowui.util.UnknownOperationResult;
+import io.jmix.flowui.view.navigation.RouteSupport;
+import io.jmix.flowui.view.navigation.UrlParamSerializer;
+import org.apache.commons.collections4.CollectionUtils;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
+/**
+ * Base class of entity detail views.
+ *
+ * @param <T> entity class
+ */
 public class StandardDetailView<T> extends StandardView implements DetailView<T>, ReadOnlyAwareView {
 
     public static final String NEW_ENTITY_ID = "new";
+    public static final String DEFAULT_ROUTE_PARAM = "id";
+    public static final String MODE_PARAM = "mode";
+    public static final String MODE_READONLY = "readonly";
+
+    public static final String LOCKED_BEFORE_REFRESH_ATTR_NAME = "lockedBeforeRefresh";
+    public static final String READ_ONLY_BEFORE_REFRESH_ATTR_NAME = "readOnlyBeforeRefresh";
 
     private T entityToEdit;
     private String serializedEntityIdToEdit;
@@ -44,33 +81,36 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
     private boolean modifiedAfterOpen = false;
 
     private boolean showSaveNotification = true;
-    private boolean commitActionPerformed = false;
+    private boolean saveActionPerformed = false;
 
+    /**
+     * Create views using {@link io.jmix.flowui.ViewNavigators} or {@link io.jmix.flowui.DialogWindows}.
+     */
+    @Internal
     public StandardDetailView() {
         addBeforeShowListener(this::onBeforeShow);
-        addAfterShowListener(this::onAfterShow);
+        addReadyListener(this::onReady);
         addBeforeCloseListener(this::onBeforeClose);
     }
 
     private void onBeforeShow(BeforeShowEvent event) {
         setupEntityToEdit();
+        setupLockHandler();
     }
 
-    private void onAfterShow(AfterShowEvent afterShowEvent) {
+    private void onReady(ReadyEvent event) {
         setupModifiedTracking();
-        setupLock(); // todo rp move to onBeforeShow?
     }
 
     private void onBeforeClose(BeforeCloseEvent event) {
         preventUnsavedChanges(event);
-        releaseLock();
     }
 
     private void setupModifiedTracking() {
         DataContext dataContext = getViewData().getDataContextOrNull();
         if (dataContext != null) {
             dataContext.addChangeListener(this::onChangeEvent);
-            dataContext.addPostCommitListener(this::onPostCommitEvent);
+            dataContext.addPostSaveListener(this::onPostSaveEvent);
         }
     }
 
@@ -78,10 +118,11 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         setModifiedAfterOpen(true);
     }
 
-    private void onPostCommitEvent(DataContext.PostCommitEvent postCommitEvent) {
+    private void onPostSaveEvent(DataContext.PostSaveEvent postSaveEvent) {
         setModifiedAfterOpen(false);
 
-        if (showSaveNotification) {
+        if (!postSaveEvent.getSavedInstances().isEmpty()
+                && showSaveNotification) {
             showSaveNotification();
         }
     }
@@ -109,15 +150,42 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         findEntityId(event);
+        checkReadOnlyState(event);
+
         super.beforeEnter(event);
     }
 
-    private void findEntityId(BeforeEnterEvent event) {
-        serializedEntityIdToEdit = event.getRouteParameters().get("id")
-                .orElseThrow(() -> new IllegalStateException("Entity id not found"));
+    private void checkReadOnlyState(BeforeEnterEvent event) {
+        Location location = event.getLocation();
+        List<String> mode = location
+                .getQueryParameters()
+                .getParameters()
+                .get(MODE_PARAM);
+
+        if (CollectionUtils.isNotEmpty(mode)
+                && mode.contains(MODE_READONLY)) {
+            setReadOnlyBeforeRefresh();
+            setReadOnly(true);
+        } else if (isReadOnlyBeforeRefresh()) {
+            RouteSupport routeSupport = getApplicationContext().getBean(RouteSupport.class);
+            routeSupport.addQueryParameter(getUI().orElse(UI.getCurrent()), MODE_PARAM, MODE_READONLY);
+
+            setReadOnly(true);
+        }
     }
 
-    private OperationResult commitChanges() {
+    protected void findEntityId(BeforeEnterEvent event) {
+        String routeParamName = getRouteParamName();
+        serializedEntityIdToEdit = event.getRouteParameters().get(routeParamName)
+                .orElseThrow(() ->
+                        new IllegalStateException(String.format("Entity '%s' not found", routeParamName)));
+    }
+
+    protected String getRouteParamName() {
+        return DEFAULT_ROUTE_PARAM;
+    }
+
+    private OperationResult saveChanges() {
         ValidationErrors validationErrors = validateView();
         if (!validationErrors.isEmpty()) {
             ViewValidation viewValidation = getViewValidation();
@@ -129,17 +197,17 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
             return OperationResult.fail();
         }
 
-        Runnable standardCommitAction = createStandardCommitAction();
+        Runnable standardSaveAction = createStandardSaveAction();
 
-        BeforeCommitChangesEvent beforeEvent = new BeforeCommitChangesEvent(this, standardCommitAction);
+        BeforeSaveEvent beforeEvent = new BeforeSaveEvent(this, standardSaveAction);
         fireEvent(beforeEvent);
 
-        if (beforeEvent.isCommitPrevented()) {
-            return beforeEvent.getCommitResult()
+        if (beforeEvent.isSavePrevented()) {
+            return beforeEvent.getSaveResult()
                     .orElse(OperationResult.fail());
         }
 
-        standardCommitAction.run();
+        standardSaveAction.run();
 
         return OperationResult.success();
     }
@@ -175,9 +243,9 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         return errors;
     }
 
-    private Runnable createStandardCommitAction() {
+    private Runnable createStandardSaveAction() {
         return () -> {
-            EntitySet committedEntities = getViewData().getDataContext().commit();
+            EntitySet savedEntities = getViewData().getDataContext().save();
 
             InstanceContainer<T> container = getEditedEntityContainer();
             if (container instanceof HasLoader) {
@@ -186,7 +254,7 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
                     //noinspection rawtypes
                     InstanceLoader instanceLoader = (InstanceLoader) loader;
                     if (instanceLoader.getEntityId() == null) {
-                        committedEntities.optional(getEditedEntity())
+                        savedEntities.optional(getEditedEntity())
                                 .ifPresent(entity ->
                                         instanceLoader.setEntityId(
                                                 requireNonNull(EntityValues.getId(entity))
@@ -196,24 +264,24 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
                 }
             }
 
-            fireEvent(new AfterCommitChangesEvent(this));
+            fireEvent(new AfterSaveEvent(this));
         };
     }
 
-    protected boolean isCommitActionPerformed() {
-        return commitActionPerformed;
+    protected boolean isSaveActionPerformed() {
+        return saveActionPerformed;
     }
 
     @Override
-    public OperationResult commit() {
-        return commitChanges()
-                .then(() -> commitActionPerformed = true);
+    public OperationResult save() {
+        return saveChanges()
+                .then(() -> saveActionPerformed = true);
     }
 
     @Override
-    public OperationResult closeWithCommit() {
-        return commitChanges()
-                .compose(() -> close(StandardOutcome.COMMIT));
+    public OperationResult closeWithSave() {
+        return saveChanges()
+                .compose(() -> close(StandardOutcome.SAVE));
     }
 
     @Override
@@ -222,16 +290,16 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
     }
 
     /**
-     * @return whether a notification will be shown in case of successful commit
+     * @return whether a notification will be shown in case of successful save
      */
     public boolean isShowSaveNotification() {
         return showSaveNotification;
     }
 
     /**
-     * Sets whether a notification will be shown in case of successful commit.
+     * Sets whether a notification should be shown in case of successful save. The default value is {@code true}.
      *
-     * @param showSaveNotification {@code true} if a notification needs to be shown, {@code false} otherwise
+     * @param showSaveNotification {@code true} if a notification should be shown, {@code false} otherwise
      */
     public void setShowSaveNotification(boolean showSaveNotification) {
         this.showSaveNotification = showSaveNotification;
@@ -261,8 +329,9 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
     }
 
     /**
-     * Sets whether cross-field validation should be performed before commit changes. It uses {@link UiCrossFieldChecks}
-     * constraint group to validate bean instance. The default value is {@code true}.
+     * Sets whether cross-field validation should be performed before saving changes.
+     * It uses {@link UiCrossFieldChecks} constraint group to validate bean instance.
+     * The default value is {@code true}.
      *
      * @param crossFieldValidationEnabled {@code true} if cross-field should be enabled, {@code false} otherwise
      */
@@ -293,20 +362,56 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
             UnknownOperationResult result = new UnknownOperationResult();
 
             boolean useSaveConfirmation = getApplicationContext()
-                    .getBean(FlowUiViewProperties.class).isUseSaveConfirmation();
-            if (useSaveConfirmation) {
-                getViewValidation().showSaveConfirmationDialog(this)
-                        .onCommit(() -> result.resume(closeWithCommit()))
-                        .onDiscard(() -> result.resume(closeWithDiscard()))
-                        .onCancel(result::fail);
+                    .getBean(FlowuiViewProperties.class).isUseSaveConfirmation();
+
+            if (action instanceof NavigateCloseAction) {
+                BeforeLeaveEvent beforeLeaveEvent = ((NavigateCloseAction) action).getBeforeLeaveEvent();
+                ContinueNavigationAction navigationAction = beforeLeaveEvent.postpone();
+
+                if (useSaveConfirmation) {
+                    getViewValidation().showSaveConfirmationDialog(this)
+                            .onSave(() -> result.resume(navigateWithSave(navigationAction)))
+                            .onDiscard(() -> result.resume(navigateWithDiscard(navigationAction)))
+                            .onCancel(result::fail);
+                } else {
+                    getViewValidation().showUnsavedChangesDialog(this)
+                            .onDiscard(() -> result.resume(navigateWithDiscard(navigationAction)))
+                            .onCancel(result::fail);
+                }
             } else {
-                getViewValidation().showUnsavedChangesDialog(this)
-                        .onDiscard(() -> result.resume(closeWithDiscard()))
-                        .onCancel(result::fail);
+                if (useSaveConfirmation) {
+                    getViewValidation().showSaveConfirmationDialog(this)
+                            .onSave(() -> result.resume(closeWithSave()))
+                            .onDiscard(() -> result.resume(closeWithDiscard()))
+                            .onCancel(result::fail);
+                } else {
+                    getViewValidation().showUnsavedChangesDialog(this)
+                            .onDiscard(() -> result.resume(closeWithDiscard()))
+                            .onCancel(result::fail);
+                }
             }
 
-            event.preventWindowClose(result);
+            event.preventClose(result);
         }
+    }
+
+    private OperationResult navigateWithDiscard(ContinueNavigationAction navigationAction) {
+        return navigate(navigationAction, StandardOutcome.DISCARD.getCloseAction());
+    }
+
+    private OperationResult navigateWithSave(ContinueNavigationAction navigationAction) {
+        return saveChanges()
+                .compose(() -> navigate(navigationAction, StandardOutcome.SAVE.getCloseAction()));
+    }
+
+    private OperationResult navigate(ContinueNavigationAction navigationAction,
+                                     CloseAction closeAction) {
+        navigationAction.proceed();
+
+        AfterCloseEvent afterCloseEvent = new AfterCloseEvent(this, closeAction);
+        fireEvent(afterCloseEvent);
+
+        return OperationResult.success();
     }
 
     @Override
@@ -373,18 +478,20 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
 
     @Override
     public T getEditedEntity() {
-        T editedEntity = getEditedEntityContainer().getItemOrNull();
-        return editedEntity != null ? editedEntity : entityToEdit;
+        T item = getEditedEntityContainer().getItemOrNull();
+        if (item == null && entityToEdit == null) {
+            throw new IllegalStateException("Edited entity isn't initialized yet");
+        }
+
+        return item != null ? item : entityToEdit;
     }
 
     @Override
     public void setEntityToEdit(T entity) {
         this.entityToEdit = entity;
-        // TODO: gg, why we don't setup 'entity to edit' here?
-//        setupEntityToEdit();
     }
 
-    private void setupEntityToEdit() {
+    protected void setupEntityToEdit() {
         if (serializedEntityIdToEdit != null) {
             setupEntityToEdit(serializedEntityIdToEdit);
         } else if (entityToEdit != null) {
@@ -394,7 +501,7 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         }
     }
 
-    private void setupEntityToEdit(String serializedEntityId) {
+    protected void setupEntityToEdit(String serializedEntityId) {
         //noinspection unchecked
         Class<T> entityClass = (Class<T>) DetailViewTypeExtractor.extractEntityClass(getClass())
                 .orElseThrow(() ->
@@ -408,7 +515,7 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         }
     }
 
-    private void initNewEntity(Class<T> entityClass) {
+    protected void initNewEntity(Class<T> entityClass) {
         DataContext dataContext = getViewData().getDataContext();
 
         T newEntity = dataContext.create(entityClass);
@@ -419,7 +526,12 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         container.setItem(newEntity);
     }
 
-    private void initExistingEntity(String serializedEntityId) {
+    protected void initExistingEntity(String serializedEntityId) {
+        Object entityId = getUrlParamSerializer().deserialize(getSerializedIdType(), serializedEntityId);
+        getEditedEntityLoader().setEntityId(entityId);
+    }
+
+    private Class<?> getSerializedIdType() {
         MetaClass entityMetaClass = getEditedEntityContainer().getEntityMetaClass();
         MetaProperty primaryKeyProperty = getMetadataTools().getPrimaryKeyProperty(entityMetaClass);
         if (primaryKeyProperty == null) {
@@ -427,12 +539,10 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
                     "Entity %s has no primary key", entityMetaClass.getName()));
         }
 
-        Class<?> idType = primaryKeyProperty.getJavaType();
-        Object entityId = UrlIdSerializer.deserializeId(idType, serializedEntityId);
-        getEditedEntityLoader().setEntityId(entityId);
+        return primaryKeyProperty.getJavaType();
     }
 
-    private void setupEntityToEdit(T entityToEdit) {
+    protected void setupEntityToEdit(T entityToEdit) {
         DataContext dataContext = getViewData().getDataContext();
 
         if (getEntityStates().isNew(entityToEdit) || doNotReloadEditedEntity()) {
@@ -503,6 +613,39 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         return false;
     }
 
+    private void setupLockHandler() {
+        getEditedEntityContainer().addItemChangeListener(this::itemChangeLockHandler);
+    }
+
+    private void itemChangeLockHandler(InstanceContainer.ItemChangeEvent<T> event) {
+        if (entityLockStatus == PessimisticLockStatus.LOCKED) {
+            return;
+        }
+        if (event.getItem() == null) {
+            return;
+        }
+
+        Object editedEntityId = null;
+
+        if (entityToEdit != null) {
+            editedEntityId = EntityValues.getId(entityToEdit);
+        } else if (serializedEntityIdToEdit != null) {
+            // Do not set up lock, if it's new instance
+            if (NEW_ENTITY_ID.equals(serializedEntityIdToEdit)) {
+                return;
+            }
+            editedEntityId = getUrlParamSerializer()
+                    .deserialize(getSerializedIdType(), serializedEntityIdToEdit);
+        }
+
+        Object id = EntityValues.getId(event.getItem());
+        // If it's the same instance, set up lock
+        if (EntityValues.propertyValueEquals(id, editedEntityId)) {
+            setupLock();
+        }
+    }
+
+
     private void setupLock() {
         T editedEntity = getEditedEntity();
         //noinspection ConstantConditions
@@ -510,24 +653,35 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
             return;
         }
 
+        if (isLockedBeforeRefresh()) {
+            // restore state after refresh
+            entityLockStatus = PessimisticLockStatus.LOCKED;
+            addAfterCloseListener(__ -> releaseLock());
+            return;
+        }
+
         Object entityId = EntityValues.getId(editedEntity);
 
         if (!getEntityStates().isNew(editedEntity) && entityId != null) {
-
-            // todo security
-            /*AccessManager accessManager = getApplicationContext().getBean(AccessManager.class);
+            AccessManager accessManager = getApplicationContext().getBean(AccessManager.class);
             MetaClass metaClass = getEditedEntityContainer().getEntityMetaClass();
 
-            UiEntityContext entityContext = new UiEntityContext(metaClass);
+            FlowuiEntityContext entityContext = new FlowuiEntityContext(metaClass);
             accessManager.applyRegisteredConstraints(entityContext);
-            InMemoryCrudEntityContext inMemoryContext = new InMemoryCrudEntityContext(metaClass, getApplicationContext());
-            accessManager.applyRegisteredConstraints(inMemoryContext);*/
 
-            boolean isPermittedBySecurity = true; /* entityContext.isEditPermitted() && (inMemoryContext.updatePredicate() == null || inMemoryContext.isUpdatePermitted(getEditedEntity())) */
-            //noinspection ConstantConditions
+            InMemoryCrudEntityContext inMemoryContext = new InMemoryCrudEntityContext(metaClass, getApplicationContext());
+            accessManager.applyRegisteredConstraints(inMemoryContext);
+
+            boolean isPermittedBySecurity = entityContext.isEditPermitted()
+                    && (inMemoryContext.updatePredicate() == null
+                    || inMemoryContext.isUpdatePermitted(getEditedEntity()));
+
             if (isPermittedBySecurity) {
                 entityLockStatus = getLockingSupport().lock(entityId);
-                if (entityLockStatus == PessimisticLockStatus.FAILED) {
+                if (entityLockStatus == PessimisticLockStatus.LOCKED) {
+                    setLockedBeforeRefresh();
+                    addAfterCloseListener(__ -> releaseLock());
+                } else if (entityLockStatus == PessimisticLockStatus.FAILED) {
                     setReadOnly(true);
                 }
             } else {
@@ -563,6 +717,29 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
      */
     private boolean isLocked() {
         return entityLockStatus == PessimisticLockStatus.LOCKED;
+    }
+
+    /**
+     * @return {@code true} if the entity instance has been pessimistically locked in this view before refreshing the
+     * page.
+     */
+    private boolean isLockedBeforeRefresh() {
+        return Boolean.TRUE.equals(getViewAttributes().getAttribute(LOCKED_BEFORE_REFRESH_ATTR_NAME));
+    }
+
+    private void setLockedBeforeRefresh() {
+        getViewAttributes().setAttribute(LOCKED_BEFORE_REFRESH_ATTR_NAME, true);
+    }
+
+    /**
+     * @return {@code true} if the view instance has been set to read-only mode before refreshing the page.
+     */
+    private boolean isReadOnlyBeforeRefresh() {
+        return Boolean.TRUE.equals(getViewAttributes().getAttribute(READ_ONLY_BEFORE_REFRESH_ATTR_NAME));
+    }
+
+    private void setReadOnlyBeforeRefresh() {
+        getViewAttributes().setAttribute(READ_ONLY_BEFORE_REFRESH_ATTR_NAME, true);
     }
 
     private void setModifiedAfterOpen(boolean entityModified) {
@@ -608,17 +785,49 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         return getApplicationContext().getBean(ReadOnlyViewsSupport.class);
     }
 
+    private UrlParamSerializer getUrlParamSerializer() {
+        return getApplicationContext().getBean(UrlParamSerializer.class);
+    }
+
+    /**
+     * Adds a listener to {@link InitEntityEvent}.
+     *
+     * @param listener listener
+     * @return registration object for removing the listener
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     protected Registration addInitEntityListener(ComponentEventListener<InitEntityEvent<T>> listener) {
         return getEventBus().addListener(InitEntityEvent.class, ((ComponentEventListener) listener));
     }
 
-    protected Registration addBeforeCommitChangesListener(ComponentEventListener<BeforeCommitChangesEvent> listener) {
-        return getEventBus().addListener(BeforeCommitChangesEvent.class, listener);
+    /**
+     * Adds a listener to {@link BeforeSaveEvent}.
+     *
+     * @param listener listener
+     * @return registration object for removing the listener
+     */
+    protected Registration addBeforeSaveListener(ComponentEventListener<BeforeSaveEvent> listener) {
+        return getEventBus().addListener(BeforeSaveEvent.class, listener);
     }
 
-    protected Registration addAfterCommitChangesListener(ComponentEventListener<AfterCommitChangesEvent> listener) {
-        return getEventBus().addListener(AfterCommitChangesEvent.class, listener);
+    /**
+     * Adds a listener to {@link AfterSaveEvent}.
+     *
+     * @param listener listener
+     * @return registration object for removing the listener
+     */
+    protected Registration addAfterSaveListener(ComponentEventListener<AfterSaveEvent> listener) {
+        return getEventBus().addListener(AfterSaveEvent.class, listener);
+    }
+
+    /**
+     * Adds a listener to {@link ValidationEvent}.
+     *
+     * @param listener listener
+     * @return registration object for removing the listener
+     */
+    protected Registration addValidationEventListener(ComponentEventListener<ValidationEvent> listener) {
+        return getEventBus().addListener(ValidationEvent.class, listener);
     }
 
     /**
@@ -627,7 +836,7 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
      * Use this event listener to initialize default values in the new entity instance, for example:
      * <pre>
      *     &#64;Subscribe
-     *     public void onInitEntity(InitEntityEvent&lt;Foo&gt; event) {
+     *     protected void onInitEntity(InitEntityEvent&lt;Foo&gt; event) {
      *         event.getEntity().setStatus(Status.ACTIVE);
      *     }
      * </pre>
@@ -635,7 +844,6 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
      * @param <E> type of entity
      * @see #addInitEntityListener(ComponentEventListener)
      */
-//    @TriggerOnce
     public static class InitEntityEvent<E> extends ComponentEvent<View<?>> {
 
         protected final E entity;
@@ -647,7 +855,7 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         }
 
         /**
-         * @return initializing entity
+         * @return entity to initialize
          */
         public E getEntity() {
             return entity;
@@ -655,56 +863,56 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
     }
 
     /**
-     * Event sent before commit of data context from {@link #commitChanges()} call.
+     * Event sent before saving the view data context.
      * <br>
-     * Use this event listener to prevent commit and/or show additional dialogs to user before commit, for example:
+     * Use this event listener to prevent saving and/or interact with the user before save, for example:
      * <pre>
      *     &#64;Subscribe
-     *     protected void onBeforeCommit(BeforeCommitChangesEvent event) {
+     *     protected void onBeforeSave(BeforeSaveEvent event) {
      *         if (getEditedEntity().getDescription() == null) {
-     *             notifications.create().withCaption("Description required").show();
-     *             event.preventCommit();
+     *             notifications.show("Description required");
+     *             event.preventSave();
      *         }
      *     }
      * </pre>
      * <p>
-     * Show dialog and resume commit after:
+     * Show dialog and resume saving after:
      * <pre>
      *     &#64;Subscribe
-     *     protected void onBeforeCommit(BeforeCommitChangesEvent event) {
+     *     protected void onBeforeSave(BeforeSaveEvent event) {
      *         if (getEditedEntity().getDescription() == null) {
      *             dialogs.createOptionDialog()
-     *                     .withCaption("Question")
-     *                     .withMessage("Do you want to set default description?")
+     *                     .withHeader("Question")
+     *                     .withText("Do you want to set default description?")
      *                     .withActions(
      *                             new DialogAction(DialogAction.Type.YES).withHandler(e -&gt; {
      *                                 getEditedEntity().setDescription("No description");
      *
-     *                                 // retry commit and resume action
-     *                                 event.resume(commitChanges());
+     *                                 // retry save and resume action
+     *                                 event.resume(save());
      *                             }),
      *                             new DialogAction(DialogAction.Type.NO).withHandler(e -&gt; {
-     *                                 // trigger standard commit and resume action
+     *                                 // trigger standard save and resume action
      *                                 event.resume();
      *                             })
      *                     )
-     *                     .show();
+     *                     .open();
      *
-     *             event.preventCommit();
+     *             event.preventSave();
      *         }
      *     }
      * </pre>
      *
-     * @see #addBeforeCommitChangesListener(ComponentEventListener)
+     * @see #addBeforeSaveListener(ComponentEventListener)
      */
-    public static class BeforeCommitChangesEvent extends ComponentEvent<View<?>> {
+    public static class BeforeSaveEvent extends ComponentEvent<View<?>> {
 
         protected final Runnable resumeAction;
 
-        protected boolean commitPrevented = false;
-        protected OperationResult commitResult;
+        protected boolean savePrevented = false;
+        protected OperationResult saveResult;
 
-        public BeforeCommitChangesEvent(View<?> source, @Nullable Runnable resumeAction) {
+        public BeforeSaveEvent(View<?> source, @Nullable Runnable resumeAction) {
             super(source, false);
             this.resumeAction = resumeAction;
         }
@@ -717,20 +925,20 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
         }
 
         /**
-         * Prevents commit of the view.
+         * Prevents saving of the view data.
          */
-        public void preventCommit() {
-            preventCommit(new UnknownOperationResult());
+        public void preventSave() {
+            preventSave(new UnknownOperationResult());
         }
 
         /**
-         * Prevents commit of the view.
+         * Prevents saving of the view data.
          *
-         * @param commitResult result object that will be returned from the {@link #commitChanges()}} method
+         * @param saveResult result object that will be returned from the {@link #saveChanges()}} method
          */
-        public void preventCommit(OperationResult commitResult) {
-            this.commitPrevented = true;
-            this.commitResult = commitResult;
+        public void preventSave(OperationResult saveResult) {
+            this.savePrevented = true;
+            this.saveResult = saveResult;
         }
 
         /**
@@ -740,51 +948,52 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
             if (resumeAction != null) {
                 resumeAction.run();
             }
-            if (commitResult instanceof UnknownOperationResult) {
-                ((UnknownOperationResult) commitResult).resume(OperationResult.success());
+            if (saveResult instanceof UnknownOperationResult) {
+                ((UnknownOperationResult) saveResult).resume(OperationResult.success());
             }
         }
 
         /**
-         * Resume with the passed result ignoring standard execution. The standard commit will not be performed.
+         * Resume with the passed result ignoring standard execution.
+         * The standard save will not be performed.
          */
         public void resume(OperationResult result) {
-            if (commitResult instanceof UnknownOperationResult) {
-                ((UnknownOperationResult) commitResult).resume(result);
+            if (saveResult instanceof UnknownOperationResult) {
+                ((UnknownOperationResult) saveResult).resume(result);
             }
         }
 
         /**
-         * @return result passed to the {@link #preventCommit(OperationResult)} method
+         * @return result passed to the {@link #preventSave(OperationResult)} method
          */
-        public Optional<OperationResult> getCommitResult() {
-            return Optional.ofNullable(commitResult);
+        public Optional<OperationResult> getSaveResult() {
+            return Optional.ofNullable(saveResult);
         }
 
         /**
-         * @return whether the commit was prevented by invoking {@link #preventCommit()} method
+         * @return whether the saving process was prevented by invoking {@link #preventSave()} method
          */
-        public boolean isCommitPrevented() {
-            return commitPrevented;
+        public boolean isSavePrevented() {
+            return savePrevented;
         }
     }
 
     /**
-     * Event sent after commit of data context from {@link #commitChanges()} call.
+     * Event sent after saving the view data context.
      * <br>
-     * Use this event listener to notify users after commit, for example:
+     * Use this event listener to notify users after save, for example:
      * <pre>
      *     &#64;Subscribe
-     *     protected void onAfterCommit(AfterCommitChanges event) {
-     *         notifications.create().withCaption("Committed").show();
+     *     protected void onAfterSave(AfterSaveEvent event) {
+     *         notifications.show("Saved");
      *     }
      * </pre>
      *
-     * @see #addAfterCommitChangesListener(ComponentEventListener)
+     * @see #addAfterSaveListener(ComponentEventListener)
      */
-    public static class AfterCommitChangesEvent extends ComponentEvent<View> {
+    public static class AfterSaveEvent extends ComponentEvent<View<?>> {
 
-        public AfterCommitChangesEvent(View source) {
+        public AfterSaveEvent(View source) {
             super(source, false);
         }
 
@@ -797,9 +1006,9 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
     }
 
     /**
-     * Event sent when view is validated from {@link #validateAdditionalRules()} call.
+     * Event sent when the view is validated on saving the view data context.
      * <br>
-     * Use this event listener to perform additional view validation, for example:
+     * Use this event listener to perform additional validation of the view, for example:
      * <pre>
      *     &#64;Subscribe
      *     protected void onViewValidation(ValidationEvent event) {
@@ -821,6 +1030,9 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
             return super.getSource();
         }
 
+        /**
+         * Add errors found by a custom validation.
+         */
         public void addErrors(ValidationErrors errors) {
             Preconditions.checkNotNullArgument(errors, "Validation errors cannot be null");
 

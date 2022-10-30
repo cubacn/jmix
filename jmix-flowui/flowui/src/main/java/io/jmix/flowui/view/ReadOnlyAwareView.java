@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,12 @@
 package io.jmix.flowui.view;
 
 /**
- * Interface for view controllers that support read-only mode.
+ * Interface of views that support read-only mode.
  */
 public interface ReadOnlyAwareView {
 
     /**
-     * @return whether a view controller in read-only mode.
+     * @return whether a view is in read-only mode.
      */
     boolean isReadOnly();
 

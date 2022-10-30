@@ -16,8 +16,9 @@
 
 package io.jmix.flowui.kit.meta.elementsgroup;
 
-import io.jmix.flowui.kit.component.SupportsFormatter;
 import io.jmix.flowui.kit.meta.StudioElementsGroup;
+import io.jmix.flowui.kit.meta.StudioProperty;
+import io.jmix.flowui.kit.meta.StudioPropertyType;
 import io.jmix.flowui.kit.meta.StudioUiKit;
 
 @StudioUiKit
@@ -30,5 +31,35 @@ public interface StudioElementsGroups {
             icon = "io/jmix/flowui/kit/meta/icon/elementsgroup/formatters.svg",
             target = {"io.jmix.flowui.kit.component.SupportsFormatter"}
     )
-    SupportsFormatter<?> formatter();
+    void formatter();
+
+    @StudioElementsGroup(
+            name = "Columns",
+            elementClassFqn = "com.vaadin.flow.component.grid.Grid.Column",
+            xmlElement = "columns",
+            icon = "io/jmix/flowui/kit/meta/icon/elementsgroup/columns.svg",
+            target = {"com.vaadin.flow.component.grid.Grid"},
+            properties = {
+                    @StudioProperty(xmlAttribute = "exclude", type = StudioPropertyType.STRING),
+                    @StudioProperty(xmlAttribute = "includeAll", type = StudioPropertyType.BOOLEAN, defaultValue = "false")
+            }
+    )
+    void columns();
+
+    @StudioElementsGroup(
+            name = "ResponsiveSteps",
+            elementClassFqn = "com.vaadin.flow.component.formlayout.FormLayout.ResponsiveStep",
+            xmlElement = "responsiveSteps",
+            target = {"com.vaadin.flow.component.formlayout.FormLayout"}
+    )
+    void responsiveSteps();
+
+    @StudioElementsGroup(
+            name = "Items",
+            elementClassFqn = "io.jmix.flowui.kit.component.dropdownbutton.DropdownButtonItem",
+            xmlElement = "items",
+            target = {"io.jmix.flowui.kit.component.dropdownbutton.DropdownButton",
+                    "io.jmix.flowui.kit.component.combobutton.ComboButton"}
+    )
+    void items();
 }

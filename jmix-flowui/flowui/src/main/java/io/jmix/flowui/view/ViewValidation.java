@@ -1,13 +1,30 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.view;
 
 import com.google.common.collect.Iterables;
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.HasComponents;
+import com.vaadin.flow.component.Focusable;
+import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.notification.Notification;
 import io.jmix.core.Messages;
 import io.jmix.core.common.util.Preconditions;
 import io.jmix.flowui.Dialogs;
-import io.jmix.flowui.FlowUiViewProperties;
+import io.jmix.flowui.FlowuiViewProperties;
 import io.jmix.flowui.Notifications;
 import io.jmix.flowui.action.DialogAction;
 import io.jmix.flowui.component.SupportsValidation;
@@ -33,13 +50,13 @@ public class ViewValidation {
     protected Validator validator;
     protected Dialogs dialogs;
     protected Notifications notifications;
-    protected FlowUiViewProperties viewProperties;
+    protected FlowuiViewProperties viewProperties;
 
     @Autowired
     public ViewValidation(Messages messages,
                           Validator validator,
                           Dialogs dialogs,
-                          FlowUiViewProperties viewProperties,
+                          FlowuiViewProperties viewProperties,
                           Notifications notifications) {
         this.messages = messages;
         this.validator = validator;
@@ -48,9 +65,9 @@ public class ViewValidation {
         this.notifications = notifications;
     }
 
-    public ValidationErrors validateUiComponents(HasComponents component) {
-        Preconditions.checkNotNullArgument(component);
-        return validateUiComponents(UiComponentUtils.getComponents(component));
+    public ValidationErrors validateUiComponents(Component container) {
+        Preconditions.checkNotNullArgument(container);
+        return validateUiComponents(UiComponentUtils.getComponents(container));
     }
 
     public ValidationErrors validateUiComponents(Collection<Component> components) {
@@ -164,7 +181,7 @@ public class ViewValidation {
         }
     }
 
-    public UnsavedChangesDialogResult showUnsavedChangesDialog(View origin) {
+    public UnsavedChangesDialogResult showUnsavedChangesDialog(View<?> origin) {
         UnsavedChangesDialogResult result = new UnsavedChangesDialogResult();
 
         dialogs.createOptionDialog()
@@ -175,7 +192,9 @@ public class ViewValidation {
                                 .withHandler(__ -> result.discard()),
                         new DialogAction(DialogAction.Type.NO)
                                 .withHandler(__ -> {
-                                    // TODO: gg, focus child component;
+                                    UiComponentUtils.findFocusComponent(origin)
+                                            .ifPresent(Focusable::focus);
+
                                     result.cancel();
                                 })
                                 .withVariant(ActionVariant.PRIMARY)
@@ -185,7 +204,7 @@ public class ViewValidation {
         return result;
     }
 
-    public SaveChangesDialogResult showSaveConfirmationDialog(View origin) {
+    public SaveChangesDialogResult showSaveConfirmationDialog(View<?> origin) {
         SaveChangesDialogResult result = new SaveChangesDialogResult();
 
         dialogs.createOptionDialog()
@@ -194,15 +213,16 @@ public class ViewValidation {
                 .withActions(
                         new DialogAction(DialogAction.Type.OK)
                                 .withText(messages.getMessage("dialogs.closeUnsaved.save"))
-                                .withHandler(__ -> result.commit())
+                                .withHandler(__ -> result.save())
                                 .withVariant(ActionVariant.PRIMARY),
                         new DialogAction(DialogAction.Type.CLOSE)
                                 .withText(messages.getMessage("dialogs.closeUnsaved.discard"))
                                 .withHandler(__ -> result.discard()),
                         new DialogAction(DialogAction.Type.CANCEL)
-                                .withIcon((String) null)
+                                .withIcon((Icon) null)
                                 .withHandler(__ -> {
-                                    // TODO: gg, focus child component;
+                                    UiComponentUtils.findFocusComponent(origin)
+                                            .ifPresent(Focusable::focus);
 
                                     result.cancel();
                                 })
@@ -249,15 +269,15 @@ public class ViewValidation {
      * Callbacks holder for save changes dialog.
      */
     public static class SaveChangesDialogResult {
-        protected Runnable commitHandler;
+        protected Runnable saveHandler;
         protected Runnable discardHandler;
         protected Runnable cancelHandler;
 
         public SaveChangesDialogResult() {
         }
 
-        public SaveChangesDialogResult onCommit(Runnable commitHandler) {
-            this.commitHandler = commitHandler;
+        public SaveChangesDialogResult onSave(Runnable saveHandler) {
+            this.saveHandler = saveHandler;
             return this;
         }
 
@@ -271,9 +291,9 @@ public class ViewValidation {
             return this;
         }
 
-        public void commit() {
-            if (commitHandler != null) {
-                commitHandler.run();
+        public void save() {
+            if (saveHandler != null) {
+                saveHandler.run();
             }
         }
 

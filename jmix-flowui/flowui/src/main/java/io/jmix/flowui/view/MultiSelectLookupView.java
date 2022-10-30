@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,12 @@
 package io.jmix.flowui.view;
 
 /**
- * A view that can change selection mode of lookup component.
+ * A view that can change selection mode of its lookup component.
  */
 public interface MultiSelectLookupView {
 
     /**
-     * Informs a view that a lookup component should change its selection mode, if possible.
+     * Informs the view that a lookup component should change its selection mode, if possible.
      *
      * @param multiSelect {@code true} to enable multiple selections, {@code false} otherwise
      */

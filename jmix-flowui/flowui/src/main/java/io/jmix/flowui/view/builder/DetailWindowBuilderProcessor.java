@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.view.builder;
 
 import com.vaadin.flow.component.Focusable;
@@ -11,7 +27,7 @@ import io.jmix.core.entity.EntityValues;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.core.metamodel.model.MetaPropertyPath;
-import io.jmix.flowui.FlowUiViewProperties;
+import io.jmix.flowui.FlowuiViewProperties;
 import io.jmix.flowui.Views;
 import io.jmix.flowui.data.*;
 import io.jmix.flowui.kit.component.SupportsUserAction;
@@ -29,7 +45,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static io.jmix.flowui.view.UiControllerUtils.getViewData;
+import static io.jmix.flowui.view.ViewControllerUtils.getViewData;
 
 
 @Internal
@@ -39,14 +55,14 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
     protected Metadata metadata;
     protected ExtendedEntities extendedEntities;
     protected List<EditedEntityTransformer> editedEntityTransformers;
-    protected FlowUiViewProperties viewProperties;
+    protected FlowuiViewProperties viewProperties;
 
     public DetailWindowBuilderProcessor(ApplicationContext applicationContext,
                                         Views views,
                                         ViewRegistry viewRegistry,
                                         Metadata metadata,
                                         ExtendedEntities extendedEntities,
-                                        FlowUiViewProperties viewProperties,
+                                        FlowuiViewProperties viewProperties,
                                         @Nullable List<EditedEntityTransformer> editedEntityTransformers) {
         super(applicationContext, views, viewRegistry);
 
@@ -57,16 +73,16 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
     }
 
     @SuppressWarnings("unchecked")
-    public <E, S extends View<?>> DialogWindow<S> build(DetailWindowBuilder<E, S> builder) {
+    public <E, V extends View<?>> DialogWindow<V> build(DetailWindowBuilder<E, V> builder) {
 
         CollectionContainer<E> container = findContainer(builder);
 
         E entity = initEntity(builder, container);
 
-        S view = createView(builder);
+        V view = createView(builder);
         ((DetailView<E>) view).setEntityToEdit(entity);
 
-        DialogWindow<S> dialog = createDialog(view);
+        DialogWindow<V> dialog = createDialog(view);
         initDialog(builder, dialog);
 
         DataContext parentDataContext = setupParentDataContext(builder, view, container);
@@ -77,8 +93,8 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
         return dialog;
     }
 
-    protected <E, S extends View<?>> void setupListDataComponent(DetailWindowBuilder<E, S> builder,
-                                                                 DetailView<E> detailView, DialogWindow<S> dialog,
+    protected <E, V extends View<?>> void setupListDataComponent(DetailWindowBuilder<E, V> builder,
+                                                                 DetailView<E> detailView, DialogWindow<V> dialog,
                                                                  @Nullable CollectionContainer<E> container,
                                                                  @Nullable DataContext parentDataContext) {
         if (container == null) {
@@ -86,11 +102,11 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
         }
 
         dialog.addAfterCloseListener(closeEvent -> {
-            if (closeEvent.closedWith(StandardOutcome.COMMIT)) {
-                E entityFromDetail = getCommittedEntity(detailView, parentDataContext);
+            if (closeEvent.closedWith(StandardOutcome.SAVE)) {
+                E entityFromDetail = getSavedEntity(detailView, parentDataContext);
                 E reloadedEntity = transformForCollectionContainer(entityFromDetail, container);
-                E committedEntity = transform(reloadedEntity, builder);
-                E mergedEntity = merge(committedEntity, builder.getOrigin(), parentDataContext);
+                E savedEntity = transform(reloadedEntity, builder);
+                E mergedEntity = merge(savedEntity, builder.getOrigin(), parentDataContext);
 
                 if (builder.getMode() == DetailViewMode.CREATE) {
                     boolean addsFirst = false;
@@ -121,8 +137,8 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
     }
 
     @SuppressWarnings("unchecked")
-    protected <E, S extends View<?>> void setupField(DetailWindowBuilder<E, S> builder,
-                                                     S view, DialogWindow<S> dialog,
+    protected <E, V extends View<?>> void setupField(DetailWindowBuilder<E, V> builder,
+                                                     V view, DialogWindow<V> dialog,
                                                      @Nullable DataContext parentDataContext) {
         builder.getField().ifPresent(field -> {
             setupViewDataContext(field, builder.getOrigin(), view, parentDataContext);
@@ -131,11 +147,11 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
     }
 
     @SuppressWarnings("unchecked")
-    protected <E, S extends View<?>> Consumer<AfterCloseEvent<S>> createAfterCloseListener(HasValue<?, E> field,
-                                                                                           DetailWindowBuilder<E, S> builder,
+    protected <E, V extends View<?>> Consumer<AfterCloseEvent<V>> createAfterCloseListener(HasValue<?, E> field,
+                                                                                           DetailWindowBuilder<E, V> builder,
                                                                                            DetailView<E> detailView) {
         return closeEvent -> {
-            if (closeEvent.closedWith(StandardOutcome.COMMIT)) {
+            if (closeEvent.closedWith(StandardOutcome.SAVE)) {
                 E entityFromDetail = detailView.getEditedEntity();
                 E reloadedEntity = transformForField(entityFromDetail, field);
                 E editedEntity = transform(reloadedEntity, builder);
@@ -164,8 +180,8 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
         };
     }
 
-    protected <E, S extends View<?>> void setupViewDataContext(HasValue<?, E> field,
-                                                               View<?> origin, S view,
+    protected <E, V extends View<?>> void setupViewDataContext(HasValue<?, E> field,
+                                                               View<?> origin, V view,
                                                                @Nullable DataContext parentDataContext) {
         if (parentDataContext == null && field instanceof SupportsValueSource) {
             ValueSource<?> valueSource = ((SupportsValueSource<?>) field).getValueSource();
@@ -183,14 +199,14 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <S extends View<?>> Class<S> inferViewClass(DialogWindowBuilder<S> builder) {
-        DetailWindowBuilder<?, S> detailBuilder = ((DetailWindowBuilder<?, S>) builder);
-        return (Class<S>) viewRegistry.getDetailViewInfo(detailBuilder.getEntityClass()).getControllerClass();
+    protected <V extends View<?>> Class<V> inferViewClass(DialogWindowBuilder<V> builder) {
+        DetailWindowBuilder<?, V> detailBuilder = ((DetailWindowBuilder<?, V>) builder);
+        return (Class<V>) viewRegistry.getDetailViewInfo(detailBuilder.getEntityClass()).getControllerClass();
     }
 
     @Nullable
-    protected <E, S extends View<?>> DataContext setupParentDataContext(DetailWindowBuilder<E, S> builder,
-                                                                        S view,
+    protected <E, V extends View<?>> DataContext setupParentDataContext(DetailWindowBuilder<E, V> builder,
+                                                                        V view,
                                                                         @Nullable CollectionContainer<E> container) {
         DataContext dataContext = builder.getParentDataContext().orElseGet(() -> {
             if (container instanceof Nested) {
@@ -338,7 +354,7 @@ public class DetailWindowBuilderProcessor extends AbstractWindowBuilderProcessor
         return result;
     }
 
-    protected <E> E getCommittedEntity(DetailView<E> detailView, @Nullable DataContext parentDataContext) {
+    protected <E> E getSavedEntity(DetailView<E> detailView, @Nullable DataContext parentDataContext) {
         E editedEntity = detailView.getEditedEntity();
         if (parentDataContext != null) {
             E trackedEntity = parentDataContext.find(editedEntity);

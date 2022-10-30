@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,11 @@
 package io.jmix.flowui.view;
 
 /**
- * View that can contain unsaved changes.
+ * Interface of views that can contain unsaved changes.
  */
 public interface ChangeTracker {
     /**
-     * @return {@code true} if a view has unsaved changes
+     * @return {@code true} if the view has unsaved changes
      */
     boolean hasUnsavedChanges();
 }

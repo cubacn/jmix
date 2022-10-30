@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import com.vaadin.flow.component.ComponentEventListener;
 import io.jmix.flowui.facet.DataLoadCoordinator;
 import io.jmix.flowui.model.DataLoader;
 import io.jmix.flowui.view.View;
-import io.jmix.flowui.sys.UiControllerReflectionInspector;
+import io.jmix.flowui.sys.ViewControllerReflectionInspector;
 
 import java.lang.invoke.MethodHandle;
 
@@ -28,7 +28,7 @@ public class OnViewEventLoadTrigger implements DataLoadCoordinator.Trigger {
 
     protected final DataLoader loader;
 
-    public OnViewEventLoadTrigger(View<?> view, UiControllerReflectionInspector reflectionInspector,
+    public OnViewEventLoadTrigger(View<?> view, ViewControllerReflectionInspector reflectionInspector,
                                   DataLoader loader, Class<?> eventClass) {
         MethodHandle addListenerMethod = reflectionInspector.getAddListenerMethod(view.getClass(), eventClass);
         if (addListenerMethod == null) {

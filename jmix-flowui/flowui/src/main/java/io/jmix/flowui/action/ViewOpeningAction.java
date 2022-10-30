@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.action;
 
 import com.vaadin.flow.router.QueryParameters;
@@ -63,32 +79,36 @@ public interface ViewOpeningAction extends Action {
      * @return route parameters or {@code null} if not set
      */
     @Nullable
-    RouteParameters getRouteParameters();
+    RouteParametersProvider getRouteParametersProvider();
 
     /**
-     * Sets route parameters that should be used in the route template.
+     * Sets route parameters provider that returns route parameters
+     * that should be used in the route template.
      * <p>
-     * Note that route parameters are set if the detail is opened in {@link OpenMode#NAVIGATION}.
+     * Note that route parameters provider is set if the detail is
+     * opened in {@link OpenMode#NAVIGATION}.
      *
-     * @param routeParameters route parameters to set
+     * @param routeParameters route parameters provider to set
      * @see Route
      */
-    void setRouteParameters(@Nullable RouteParameters routeParameters);
+    void setRouteParametersProvider(@Nullable RouteParametersProvider routeParameters);
 
     /**
-     * @return query parameters or {@code null} if not set
+     * @return query parameters provider or {@code null} if not set
      */
     @Nullable
-    QueryParameters getQueryParameters();
+    QueryParametersProvider getQueryParametersProvider();
 
     /**
-     * Sets query parameters that should be used in the URL.
+     * Sets query parameters provider that returns query parameters
+     * that should be used in the URL.
      * <p>
-     * Note that query parameters are set if the detail is opened in {@link OpenMode#NAVIGATION}.
+     * Note that query parameters provider is set if the detail is
+     * opened in {@link OpenMode#NAVIGATION}.
      *
-     * @param queryParameters query parameters to set
+     * @param queryParameters query parameters provider to set
      */
-    void setQueryParameters(@Nullable QueryParameters queryParameters);
+    void setQueryParametersProvider(@Nullable QueryParametersProvider queryParameters);
 
     /**
      * Sets the handler to be invoked when the detail view closes.
@@ -100,14 +120,34 @@ public interface ViewOpeningAction extends Action {
      * <pre>
      * &#64;Install(to = "petsTable.view", subject = "afterCloseHandler")
      * protected void petsTableViewAfterCloseHandler(AfterCloseEvent event) {
-     *     if (event.closedWith(StandardOutcome.COMMIT)) {
-     *         System.out.println("Committed");
+     *     if (event.closedWith(StandardOutcome.SAVE)) {
+     *         System.out.println("Saved");
      *     }
      * }
      * </pre>
      *
      * @param afterCloseHandler handler to set
-     * @param <S>               view type
+     * @param <V>               view type
      */
-    <S extends View<?>> void setAfterCloseHandler(@Nullable Consumer<DialogWindow.AfterCloseEvent<S>> afterCloseHandler);
+    <V extends View<?>> void setAfterCloseHandler(@Nullable Consumer<DialogWindow.AfterCloseEvent<V>> afterCloseHandler);
+
+    @FunctionalInterface
+    interface RouteParametersProvider {
+
+        /**
+         * @return {@link RouteParameters} instance or {@code null}
+         */
+        @Nullable
+        RouteParameters getRouteParameters();
+    }
+
+    @FunctionalInterface
+    interface QueryParametersProvider {
+
+        /**
+         * @return {@link QueryParameters} instance or {@code null}
+         */
+        @Nullable
+        QueryParameters getQueryParameters();
+    }
 }

@@ -1,21 +1,37 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.action.list;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.router.QueryParameters;
-import com.vaadin.flow.router.RouteParameters;
 import io.jmix.core.Messages;
+import io.jmix.core.accesscontext.InMemoryCrudEntityContext;
+import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.security.EntityOp;
-import io.jmix.flowui.DialogWindowBuilders;
-import io.jmix.flowui.FlowUiComponentProperties;
+import io.jmix.flowui.DialogWindows;
+import io.jmix.flowui.FlowuiComponentProperties;
 import io.jmix.flowui.ViewNavigators;
+import io.jmix.flowui.accesscontext.FlowuiEntityContext;
 import io.jmix.flowui.action.ActionType;
 import io.jmix.flowui.action.AdjustWhenViewReadOnly;
-import io.jmix.flowui.action.ExecutableAction;
 import io.jmix.flowui.action.ViewOpeningAction;
 import io.jmix.flowui.data.EntityDataUnit;
 import io.jmix.flowui.component.UiComponentUtils;
-import io.jmix.flowui.kit.component.FlowUiComponentUtils;
+import io.jmix.flowui.kit.component.FlowuiComponentUtils;
 import io.jmix.flowui.kit.component.KeyCombination;
 import io.jmix.flowui.view.*;
 import io.jmix.flowui.view.DialogWindow.AfterCloseEvent;
@@ -30,15 +46,15 @@ import java.util.function.Function;
 
 @ActionType(EditAction.ID)
 public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>, E>
-        implements AdjustWhenViewReadOnly, ViewOpeningAction, ExecutableAction {
+        implements AdjustWhenViewReadOnly, ViewOpeningAction {
 
     public static final String ID = "edit";
 
     protected ViewNavigators viewNavigators;
-    protected DialogWindowBuilders dialogWindowBuilders;
+    protected DialogWindows dialogWindows;
 
     protected ActionViewInitializer viewInitializer = new ActionViewInitializer();
-    protected Consumer<E> afterCommitHandler;
+    protected Consumer<E> afterSaveHandler;
     protected Function<E, E> transformation;
 
     protected boolean textInitialized = false;
@@ -59,7 +75,7 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
         super.initAction();
 
         setConstraintEntityOp(EntityOp.UPDATE);
-        this.icon = FlowUiComponentUtils.iconToSting(VaadinIcon.PENCIL);
+        this.icon = FlowuiComponentUtils.convertToIcon(VaadinIcon.PENCIL);
     }
 
     @Nullable
@@ -111,50 +127,50 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
 
     @Nullable
     @Override
-    public RouteParameters getRouteParameters() {
-        return viewInitializer.getRouteParameters();
+    public RouteParametersProvider getRouteParametersProvider() {
+        return viewInitializer.getRouteParametersProvider();
     }
 
     @Override
-    public void setRouteParameters(@Nullable RouteParameters routeParameters) {
-        viewInitializer.setRouteParameters(routeParameters);
+    public void setRouteParametersProvider(@Nullable RouteParametersProvider routeParameters) {
+        viewInitializer.setRouteParametersProvider(routeParameters);
     }
 
     @Nullable
     @Override
-    public QueryParameters getQueryParameters() {
-        return viewInitializer.getQueryParameters();
+    public QueryParametersProvider getQueryParametersProvider() {
+        return viewInitializer.getQueryParametersProvider();
     }
 
     @Override
-    public void setQueryParameters(@Nullable QueryParameters queryParameters) {
-        viewInitializer.setQueryParameters(queryParameters);
+    public void setQueryParametersProvider(@Nullable QueryParametersProvider queryParameters) {
+        viewInitializer.setQueryParametersProvider(queryParameters);
     }
 
     @Override
-    public <S extends View<?>> void setAfterCloseHandler(@Nullable Consumer<AfterCloseEvent<S>> afterCloseHandler) {
+    public <V extends View<?>> void setAfterCloseHandler(@Nullable Consumer<AfterCloseEvent<V>> afterCloseHandler) {
         viewInitializer.setAfterCloseHandler(afterCloseHandler);
     }
 
     /**
-     * Sets the handler to be invoked when the detail view commits the entity.
+     * Sets the handler to be invoked when the detail view saves the entity.
      * <p>
      * Note that handler is invoked if the detail is opened in {@link OpenMode#DIALOG} mode.
      * <p>
      * The preferred way to set the handler is using a controller method annotated with {@link Install}, e.g.:
      * <pre>
-     * &#64;Install(to = "petsTable.edit", subject = "afterCommitHandler")
-     * protected void petsTableEditAfterCommitHandler(Pet entity) {
-     *     System.out.println("Committed " + entity);
+     * &#64;Install(to = "petsTable.edit", subject = "afterSaveHandler")
+     * protected void petsTableEditAfterSaveHandler(Pet entity) {
+     *     System.out.println("Saved " + entity);
      * }
      * </pre>
      */
-    public void setAfterCommitHandler(@Nullable Consumer<E> afterCommitHandler) {
-        this.afterCommitHandler = afterCommitHandler;
+    public void setAfterSaveHandler(@Nullable Consumer<E> afterSaveHandler) {
+        this.afterSaveHandler = afterSaveHandler;
     }
 
     /**
-     * Sets the function to transform the committed in the detail view entity before setting it to the target data
+     * Sets the function to transform the saved in the detail view entity before setting it to the target data
      * container.
      * <p>
      * Note that transformation function is invoked if the detail is opened in {@link OpenMode#DIALOG} mode.
@@ -180,7 +196,7 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
     }
 
     @Autowired
-    protected void setFlowUiComponentProperties(FlowUiComponentProperties flowUiComponentProperties) {
+    protected void setFlowUiComponentProperties(FlowuiComponentProperties flowUiComponentProperties) {
         this.shortcutCombination = KeyCombination.create(flowUiComponentProperties.getGridEditShortcut());
     }
 
@@ -190,8 +206,8 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
     }
 
     @Autowired
-    public void setDialogWindowBuilders(DialogWindowBuilders dialogWindowBuilders) {
-        this.dialogWindowBuilders = dialogWindowBuilders;
+    public void setDialogWindowBuilders(DialogWindows dialogWindows) {
+        this.dialogWindows = dialogWindows;
     }
 
     @Override
@@ -202,17 +218,18 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
 
     @Override
     protected boolean isPermitted() {
-        if (target == null /*|| target.getSingleSelected() == null || !(target.getItems() instanceof EntityDataUnit)*/) {
+        if (target == null
+                || target.getSingleSelectedItem() == null
+                || !(target.getItems() instanceof EntityDataUnit)) {
             return false;
         }
 
-        // TODO: add security
-/*        MetaClass metaClass = ((EntityDataUnit) target.getItems()).getEntityMetaClass();
+        MetaClass metaClass = ((EntityDataUnit) target.getItems()).getEntityMetaClass();
         if (metaClass == null) {
             return true;
         }
 
-        UiEntityContext entityContext = new UiEntityContext(metaClass);
+        FlowuiEntityContext entityContext = new FlowuiEntityContext(metaClass);
         accessManager.applyRegisteredConstraints(entityContext);
         InMemoryCrudEntityContext inMemoryCrudEntityContext = new InMemoryCrudEntityContext(metaClass, applicationContext);
         accessManager.applyRegisteredConstraints(inMemoryCrudEntityContext);
@@ -223,7 +240,7 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
 
         if (inMemoryCrudEntityContext.updatePredicate() != null) {
             return true;
-        }*/
+        }
 
         return super.isPermitted();
     }
@@ -232,48 +249,46 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
     public void refreshState() {
         super.refreshState();
 
-        if (target == null /*|| !(target.getItems() instanceof EntityDataUnit)*/) {
+        if (target == null || !(target.getItems() instanceof EntityDataUnit)) {
             return;
         }
         if (!textInitialized) {
-            // TODO: add security
-/*            MetaClass metaClass = ((EntityDataUnit) target.getItems()).getEntityMetaClass();
-
-            UiEntityContext entityContext = new UiEntityContext(metaClass);
-            accessManager.applyRegisteredConstraints(entityContext);
-            InMemoryCrudEntityContext inMemoryContext = new InMemoryCrudEntityContext(metaClass, applicationContext);
-            accessManager.applyRegisteredConstraints(inMemoryContext);
+            MetaClass metaClass = ((EntityDataUnit) target.getItems()).getEntityMetaClass();
 
             if (metaClass != null) {
-                Object entity = target.getSingleSelected();
+                FlowuiEntityContext entityContext = new FlowuiEntityContext(metaClass);
+                accessManager.applyRegisteredConstraints(entityContext);
+                InMemoryCrudEntityContext inMemoryContext = new InMemoryCrudEntityContext(metaClass, applicationContext);
+                accessManager.applyRegisteredConstraints(inMemoryContext);
+
+                Object entity = target.getSingleSelectedItem();
                 if (entityContext.isEditPermitted()
                         && (inMemoryContext.updatePredicate() == null
                         || entity != null && inMemoryContext.isUpdatePermitted(entity))) {
                     super.setText(messages.getMessage("actions.Edit"));
                 } else {
-                    super.setText(messages.getMessage("actions.View"));
+                    super.setText(messages.getMessage("actions.Read"));
                 }
-            }*/
+            }
         }
     }
 
     @Override
     public boolean isDisabledWhenViewReadOnly() {
-        // TODO: add security
-/*        if (!(target.getItems() instanceof EntityDataUnit)) {
+        if (!(target.getItems() instanceof EntityDataUnit)) {
             return true;
         }
 
         MetaClass metaClass = ((EntityDataUnit) target.getItems()).getEntityMetaClass();
         if (metaClass != null) {
-            // Even though the view is read-only, this edit action may remain active
-            // because the related entity cannot be edited and the corresponding edit view
+            // Even though the screen is read-only, this edit action may remain active
+            // because the related entity cannot be edited and the corresponding edit screen
             // will be opened in read-only mode either.
-            UiEntityContext entityContext = new UiEntityContext(metaClass);
+            FlowuiEntityContext entityContext = new FlowuiEntityContext(metaClass);
             accessManager.applyRegisteredConstraints(entityContext);
 
             return entityContext.isEditPermitted();
-        }*/
+        }
 
         return true;
     }
@@ -284,11 +299,7 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
     @Override
     public void execute() {
         checkTarget();
-
-        if (!(target.getItems() instanceof EntityDataUnit)) {
-            throw new IllegalStateException(String.format("%s target dataSource is null or does not implement %s",
-                    getClass().getSimpleName(), EntityDataUnit.class.getSimpleName()));
-        }
+        checkTargetItems(EntityDataUnit.class);
 
         E editedEntity = target.getSingleSelectedItem();
         if (editedEntity == null) {
@@ -306,39 +317,33 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
 
     protected void navigate(E editedEntity) {
         DetailViewNavigator<E> navigator = viewNavigators.detailView((target))
-                .editEntity(editedEntity);
+                .editEntity(editedEntity)
+                .withBackwardNavigation(true);
 
-        if (target instanceof Component) {
-            View<?> parent = UiComponentUtils.findView((Component) target);
-            if (parent != null) {
-                navigator = navigator.withBackNavigationTarget(parent.getClass());
-            }
-        }
-
-        viewInitializer.initNavigator(navigator);
+        navigator = viewInitializer.initNavigator(navigator);
 
         navigator.navigate();
     }
 
     @SuppressWarnings("unchecked")
     protected void openDialog(E editedEntity) {
-        DetailWindowBuilder<E, View<?>> detailBuilder = dialogWindowBuilders.detail(target);
+        DetailWindowBuilder<E, View<?>> builder = dialogWindows.detail(target);
 
-        detailBuilder = viewInitializer.initWindowBuilder(detailBuilder);
+        builder = viewInitializer.initWindowBuilder(builder);
 
-        detailBuilder.editEntity(editedEntity);
+        builder = builder.editEntity(editedEntity);
 
         if (transformation != null) {
-            detailBuilder.withTransformation(transformation);
+            builder = builder.withTransformation(transformation);
         }
 
-        DialogWindow<View<?>> dialogWindow = detailBuilder.build();
-        if (afterCommitHandler != null) {
+        DialogWindow<View<?>> dialogWindow = builder.build();
+        if (afterSaveHandler != null) {
             dialogWindow.addAfterCloseListener(event -> {
-                if (event.closedWith(StandardOutcome.COMMIT)
+                if (event.closedWith(StandardOutcome.SAVE)
                         && event.getView() instanceof DetailView) {
-                    E committedEntity = ((DetailView<E>) event.getView()).getEditedEntity();
-                    afterCommitHandler.accept(committedEntity);
+                    E savedEntity = ((DetailView<E>) event.getView()).getEditedEntity();
+                    afterSaveHandler.accept(savedEntity);
                 }
             });
         }
@@ -363,18 +368,18 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
     }
 
     /**
-     * @see #setRouteParameters(RouteParameters)
+     * @see #setRouteParametersProvider(RouteParametersProvider)
      */
-    public EditAction<E> withRouteParameters(@Nullable RouteParameters routeParameters) {
-        setRouteParameters(routeParameters);
+    public EditAction<E> withRouteParametersProvider(@Nullable RouteParametersProvider provider) {
+        setRouteParametersProvider(provider);
         return this;
     }
 
     /**
-     * @see #setQueryParameters(QueryParameters)
+     * @see #setQueryParametersProvider(QueryParametersProvider)
      */
-    public EditAction<E> withQueryParameters(@Nullable QueryParameters queryParameters) {
-        setQueryParameters(queryParameters);
+    public EditAction<E> withQueryParametersProvider(@Nullable QueryParametersProvider provider) {
+        setQueryParametersProvider(provider);
         return this;
     }
 
@@ -389,16 +394,16 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
     /**
      * @see #setAfterCloseHandler(Consumer)
      */
-    public <S extends View<?>> EditAction<E> withAfterCloseHandler(Consumer<AfterCloseEvent<S>> afterCloseHandler) {
+    public <V extends View<?>> EditAction<E> withAfterCloseHandler(Consumer<AfterCloseEvent<V>> afterCloseHandler) {
         setAfterCloseHandler(afterCloseHandler);
         return this;
     }
 
     /**
-     * @see #setAfterCommitHandler(Consumer)
+     * @see #setAfterSaveHandler(Consumer)
      */
-    public EditAction<E> withAfterCommitHandler(@Nullable Consumer<E> afterCommitHandler) {
-        setAfterCommitHandler(afterCommitHandler);
+    public EditAction<E> withAfterSaveHandler(@Nullable Consumer<E> afterSaveHandler) {
+        setAfterSaveHandler(afterSaveHandler);
         return this;
     }
 

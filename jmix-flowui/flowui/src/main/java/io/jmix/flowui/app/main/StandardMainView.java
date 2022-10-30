@@ -22,13 +22,16 @@ import com.vaadin.flow.component.HasText;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.router.RouterLayout;
 import io.jmix.flowui.component.UiComponentUtils;
+import io.jmix.flowui.component.applayout.JmixAppLayout;
+import io.jmix.flowui.view.ViewControllerUtils;
 import io.jmix.flowui.view.View;
-import io.jmix.flowui.view.UiControllerUtils;
-import io.jmix.flowui.sys.ViewSupport;
 
 import java.util.Optional;
 
-public class StandardMainView extends View<AppLayout> implements RouterLayout {
+/**
+ * Base class of main views containing {@link AppLayout}.
+ */
+public class StandardMainView extends View<JmixAppLayout> implements RouterLayout {
 
     @Override
     public void showRouterLayoutContent(HasElement content) {
@@ -37,7 +40,7 @@ public class StandardMainView extends View<AppLayout> implements RouterLayout {
         updateTitle();
     }
 
-    private void updateTitle() {
+    protected void updateTitle() {
         getTitleComponent()
                 .filter(c -> c instanceof HasText)
                 .ifPresent(c -> ((HasText) c).setText(getTitleFromOpenedView()));
@@ -48,11 +51,6 @@ public class StandardMainView extends View<AppLayout> implements RouterLayout {
     }
 
     private String getTitleFromOpenedView() {
-        if (getContent().getContent() instanceof View) {
-            return getApplicationContext().getBean(ViewSupport.class)
-                    .getLocalizedPageTitle((View<?>) getContent().getContent());
-        } else {
-            return UiControllerUtils.getPageTitle(getContent());
-        }
+        return ViewControllerUtils.getPageTitle(getContent().getContent());
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@ import io.jmix.flowui.view.View;
 
 /**
  * Implementations of the interface are used for wiring of fields/setters to the view controllers. It defines
- * additional dependency injectors to the base {@link UiControllerDependencyInjector}.
+ * additional dependency injectors to the base {@link ViewControllerDependencyInjector}.
  *
- * @see UiControllerDependencyManager
+ * @see ViewControllerDependencyManager
  */
 public interface ControllerDependencyInjector {
 

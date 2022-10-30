@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,12 +25,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Crockford Base32 encoding implementation that is used to serialize UUID values.
+ * Crockford's Base32 encoding of UUID values.
  * <p>
  *
- * <a href="https://www.crockford.com/wrmg/base32.html">Crockford Base32 encoding</a>
+ * <a href="https://www.crockford.com/base32.html">Crockford's Base32 encoding</a>
  *
- * @see UrlIdSerializer
+ * @see UrlParamSerializer
  */
 public final class CrockfordUuidEncoder {
 

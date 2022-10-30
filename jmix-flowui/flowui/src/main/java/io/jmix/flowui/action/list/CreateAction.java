@@ -1,28 +1,42 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.action.list;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.router.QueryParameters;
-import com.vaadin.flow.router.RouteParameters;
 import io.jmix.core.AccessManager;
 import io.jmix.core.Messages;
-import io.jmix.flowui.DialogWindowBuilders;
-import io.jmix.flowui.FlowUiComponentProperties;
+import io.jmix.core.metamodel.model.MetaClass;
+import io.jmix.flowui.DialogWindows;
+import io.jmix.flowui.FlowuiComponentProperties;
 import io.jmix.flowui.ViewNavigators;
+import io.jmix.flowui.accesscontext.FlowuiEntityContext;
 import io.jmix.flowui.action.ActionType;
 import io.jmix.flowui.action.AdjustWhenViewReadOnly;
-import io.jmix.flowui.action.ExecutableAction;
 import io.jmix.flowui.action.ViewOpeningAction;
 import io.jmix.flowui.data.EntityDataUnit;
-import io.jmix.flowui.component.UiComponentUtils;
 import io.jmix.flowui.kit.action.ActionVariant;
-import io.jmix.flowui.kit.component.FlowUiComponentUtils;
+import io.jmix.flowui.kit.component.FlowuiComponentUtils;
 import io.jmix.flowui.kit.component.KeyCombination;
+import io.jmix.flowui.sys.ActionViewInitializer;
 import io.jmix.flowui.view.*;
 import io.jmix.flowui.view.DialogWindow.AfterCloseEvent;
 import io.jmix.flowui.view.builder.DetailWindowBuilder;
 import io.jmix.flowui.view.navigation.DetailViewNavigator;
-import io.jmix.flowui.sys.ActionViewInitializer;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.annotation.Nullable;
@@ -35,19 +49,19 @@ import static io.jmix.flowui.component.UiComponentUtils.isComponentAttachedToDia
 
 @ActionType(CreateAction.ID)
 public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
-        implements AdjustWhenViewReadOnly, ViewOpeningAction, ExecutableAction {
+        implements AdjustWhenViewReadOnly, ViewOpeningAction {
 
     public static final String ID = "create";
 
     protected ViewNavigators viewNavigators;
-    protected DialogWindowBuilders dialogWindowBuilders;
+    protected DialogWindows dialogWindows;
     protected AccessManager accessManager;
 
     protected ActionViewInitializer viewInitializer = new ActionViewInitializer();
 
     protected Supplier<E> newEntitySupplier;
     protected Consumer<E> initializer;
-    protected Consumer<E> afterCommitHandler;
+    protected Consumer<E> afterSaveHandler;
     protected Function<E, E> transformation;
 
     protected OpenMode openMode;
@@ -64,7 +78,7 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
         super.initAction();
 
         this.variant = ActionVariant.PRIMARY;
-        this.icon = FlowUiComponentUtils.iconToSting(VaadinIcon.PLUS);
+        this.icon = FlowuiComponentUtils.convertToIcon(VaadinIcon.PLUS);
     }
 
     @Nullable
@@ -116,28 +130,28 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
 
     @Nullable
     @Override
-    public RouteParameters getRouteParameters() {
-        return viewInitializer.getRouteParameters();
+    public RouteParametersProvider getRouteParametersProvider() {
+        return viewInitializer.getRouteParametersProvider();
     }
 
     @Override
-    public void setRouteParameters(@Nullable RouteParameters routeParameters) {
-        viewInitializer.setRouteParameters(routeParameters);
+    public void setRouteParametersProvider(@Nullable RouteParametersProvider provider) {
+        viewInitializer.setRouteParametersProvider(provider);
     }
 
     @Nullable
     @Override
-    public QueryParameters getQueryParameters() {
-        return viewInitializer.getQueryParameters();
+    public QueryParametersProvider getQueryParametersProvider() {
+        return viewInitializer.getQueryParametersProvider();
     }
 
     @Override
-    public void setQueryParameters(@Nullable QueryParameters queryParameters) {
-        viewInitializer.setQueryParameters(queryParameters);
+    public void setQueryParametersProvider(@Nullable QueryParametersProvider provider) {
+        viewInitializer.setQueryParametersProvider(provider);
     }
 
     @Override
-    public <S extends View<?>> void setAfterCloseHandler(@Nullable Consumer<AfterCloseEvent<S>> afterCloseHandler) {
+    public <V extends View<?>> void setAfterCloseHandler(@Nullable Consumer<AfterCloseEvent<V>> afterCloseHandler) {
         viewInitializer.setAfterCloseHandler(afterCloseHandler);
     }
 
@@ -160,24 +174,24 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
     }
 
     /**
-     * Sets the handler to be invoked when the detail view commits the new entity.
+     * Sets the handler to be invoked when the detail view saves the new entity.
      * <p>
      * Note that handler is invoked if the detail is opened in {@link OpenMode#DIALOG} mode.
      * <p>
      * The preferred way to set the handler is using a controller method annotated with {@link Install}, e.g.:
      * <pre>
-     * &#64;Install(to = "petsTable.create", subject = "afterCommitHandler")
-     * protected void petsTableCreateAfterCommitHandler(Pet entity) {
+     * &#64;Install(to = "petsTable.create", subject = "afterSaveHandler")
+     * protected void petsTableCreateAfterSaveHandler(Pet entity) {
      *     System.out.println("Created " + entity);
      * }
      * </pre>
      */
-    public void setAfterCommitHandler(@Nullable Consumer<E> afterCommitHandler) {
-        this.afterCommitHandler = afterCommitHandler;
+    public void setAfterSaveHandler(@Nullable Consumer<E> afterSaveHandler) {
+        this.afterSaveHandler = afterSaveHandler;
     }
 
     /**
-     * Sets the function to transform the committed in the detail view entity before setting it to the target data
+     * Sets the function to transform the saved in the detail view entity before setting it to the target data
      * container.
      * <p>
      * Note that transformation function is invoked if the detail is opened in {@link OpenMode#DIALOG} mode.
@@ -219,7 +233,7 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
     }
 
     @Autowired
-    protected void setFlowUiComponentProperties(FlowUiComponentProperties flowUiComponentProperties) {
+    protected void setFlowUiComponentProperties(FlowuiComponentProperties flowUiComponentProperties) {
         this.shortcutCombination = KeyCombination.create(flowUiComponentProperties.getGridCreateShortcut());
     }
 
@@ -234,28 +248,27 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
     }
 
     @Autowired
-    public void setDialogWindowBuilders(DialogWindowBuilders dialogWindowBuilders) {
-        this.dialogWindowBuilders = dialogWindowBuilders;
+    public void setDialogWindowBuilders(DialogWindows dialogWindows) {
+        this.dialogWindows = dialogWindows;
     }
 
     @Override
     protected boolean isPermitted() {
-        if (target == null /*|| !(target.getItems() instanceof EntityDataUnit)*/) {
+        if (target == null || !(target.getItems() instanceof EntityDataUnit)) {
             return false;
         }
 
-        // TODO: add security
-/*        MetaClass metaClass = ((EntityDataUnit) target.getItems()).getEntityMetaClass();
+        MetaClass metaClass = ((EntityDataUnit) target.getItems()).getEntityMetaClass();
         if (metaClass == null) {
             return true;
         }
 
-        UiEntityContext entityContext = new UiEntityContext(metaClass);
+        FlowuiEntityContext entityContext = new FlowuiEntityContext(metaClass);
         accessManager.applyRegisteredConstraints(entityContext);
 
         if (!entityContext.isCreatePermitted()) {
             return false;
-        }*/
+        }
 
         return super.isPermitted();
     }
@@ -266,11 +279,7 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
     @Override
     public void execute() {
         checkTarget();
-
-        if (!(target.getItems() instanceof EntityDataUnit)) {
-            throw new IllegalStateException(String.format("%s target items is null or does not implement %s",
-                    getClass().getSimpleName(), EntityDataUnit.class.getSimpleName()));
-        }
+        checkTargetItems(EntityDataUnit.class);
 
         if (openMode == OpenMode.DIALOG
                 || isComponentAttachedToDialog((Component) target)) {
@@ -281,50 +290,43 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
     }
 
     protected void navigate() {
-        DetailViewNavigator<E> navigator = viewNavigators.detailView((target));
+        DetailViewNavigator<E> navigator = viewNavigators.detailView((target))
+                .newEntity()
+                .withBackwardNavigation(true);
 
-        navigator = navigator.newEntity();
-
-        if (target instanceof Component) {
-            View<?> parent = UiComponentUtils.findView((Component) target);
-            if (parent != null) {
-                navigator = navigator.withBackNavigationTarget(parent.getClass());
-            }
-        }
-
-        viewInitializer.initNavigator(navigator);
+        navigator = viewInitializer.initNavigator(navigator);
 
         navigator.navigate();
     }
 
     @SuppressWarnings("unchecked")
     protected void openDialog() {
-        DetailWindowBuilder<E, View<?>> detailBuilder = dialogWindowBuilders.detail(target);
+        DetailWindowBuilder<E, View<?>> builder = dialogWindows.detail(target);
 
-        detailBuilder = viewInitializer.initWindowBuilder(detailBuilder);
+        builder = viewInitializer.initWindowBuilder(builder);
 
         if (newEntitySupplier != null) {
             E entity = newEntitySupplier.get();
-            detailBuilder.newEntity(entity);
+            builder = builder.newEntity(entity);
         } else {
-            detailBuilder.newEntity();
+            builder = builder.newEntity();
         }
 
         if (initializer != null) {
-            detailBuilder = detailBuilder.withInitializer(initializer);
+            builder = builder.withInitializer(initializer);
         }
 
         if (transformation != null) {
-            detailBuilder.withTransformation(transformation);
+            builder = builder.withTransformation(transformation);
         }
 
-        DialogWindow<?> dialogWindow = detailBuilder.build();
-        if (afterCommitHandler != null) {
+        DialogWindow<?> dialogWindow = builder.build();
+        if (afterSaveHandler != null) {
             dialogWindow.addAfterCloseListener(event -> {
-                if (event.closedWith(StandardOutcome.COMMIT)
+                if (event.closedWith(StandardOutcome.SAVE)
                         && event.getView() instanceof DetailView) {
-                    E committedEntity = ((DetailView<E>) event.getView()).getEditedEntity();
-                    afterCommitHandler.accept(committedEntity);
+                    E savedEntity = ((DetailView<E>) event.getView()).getEditedEntity();
+                    afterSaveHandler.accept(savedEntity);
                 }
             });
         }
@@ -349,18 +351,18 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
     }
 
     /**
-     * @see #setRouteParameters(RouteParameters)
+     * @see #setRouteParametersProvider(RouteParametersProvider)
      */
-    public CreateAction<E> withRouteParameters(@Nullable RouteParameters routeParameters) {
-        setRouteParameters(routeParameters);
+    public CreateAction<E> withRouteParameters(@Nullable RouteParametersProvider provider) {
+        setRouteParametersProvider(provider);
         return this;
     }
 
     /**
-     * @see #setQueryParameters(QueryParameters)
+     * @see #setQueryParametersProvider(QueryParametersProvider)
      */
-    public CreateAction<E> withQueryParameters(@Nullable QueryParameters queryParameters) {
-        setQueryParameters(queryParameters);
+    public CreateAction<E> withQueryParameters(@Nullable QueryParametersProvider provider) {
+        setQueryParametersProvider(provider);
         return this;
     }
 
@@ -375,17 +377,17 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
     /**
      * @see #setAfterCloseHandler(Consumer)
      */
-    public <S extends View<?>> CreateAction<E> withAfterCloseHandler(
-            @Nullable Consumer<AfterCloseEvent<S>> afterCloseHandler) {
+    public <V extends View<?>> CreateAction<E> withAfterCloseHandler(
+            @Nullable Consumer<AfterCloseEvent<V>> afterCloseHandler) {
         setAfterCloseHandler(afterCloseHandler);
         return this;
     }
 
     /**
-     * @see #setAfterCommitHandler(Consumer)
+     * @see #setAfterSaveHandler(Consumer)
      */
-    public CreateAction<E> withAfterCommitHandler(@Nullable Consumer<E> afterCommitHandler) {
-        setAfterCommitHandler(afterCommitHandler);
+    public CreateAction<E> withAfterSaveHandler(@Nullable Consumer<E> afterSaveHandler) {
+        setAfterSaveHandler(afterSaveHandler);
         return this;
     }
 

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.view;
 
 import com.google.common.base.Strings;
@@ -7,13 +23,9 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.dialog.DialogVariant;
 import com.vaadin.flow.component.dialog.GeneratedVaadinDialog.OpenedChangeEvent;
-import com.vaadin.flow.component.html.H2;
-import com.vaadin.flow.component.html.Header;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.Scroller;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.dom.ClassList;
 import com.vaadin.flow.dom.Element;
 import com.vaadin.flow.dom.Style;
@@ -24,9 +36,8 @@ import io.jmix.core.common.event.EventHub;
 import io.jmix.core.common.event.Subscription;
 import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.kit.component.button.JmixButton;
-import io.jmix.flowui.view.View.AfterShowEvent;
 import io.jmix.flowui.view.View.BeforeShowEvent;
-import io.jmix.flowui.sys.ViewSupport;
+import io.jmix.flowui.view.View.ReadyEvent;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
@@ -37,20 +48,20 @@ import java.util.EventObject;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasStyle,
+public class DialogWindow<V extends View<?>> implements HasSize, HasTheme, HasStyle,
         ApplicationContextAware, InitializingBean {
 
-    protected static final String BASE_STYLE_NAME = "jmix-dialog-window";
+    protected static final String BASE_CLASS_NAME = "jmix-dialog-window";
 
     protected Dialog dialog;
-    protected S view;
+    protected V view;
 
     protected ApplicationContext applicationContext;
 
     // private, lazily initialized
     private EventHub eventHub = null;
 
-    public DialogWindow(S view) {
+    public DialogWindow(V view) {
         this.view = view;
         this.dialog = createDialog();
     }
@@ -66,7 +77,7 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
         initDialog(dialog);
     }
 
-    protected void initView(S view) {
+    protected void initView(V view) {
         view.setCloseDelegate(__ -> closeInternal());
         view.addAfterCloseListener(this::onViewAfterClosed);
     }
@@ -76,8 +87,10 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
     }
 
     protected void initDialog(Dialog dialog) {
-        String title = applicationContext.getBean(ViewSupport.class)
-                .getLocalizedPageTitle(view);
+        String title = view.getPageTitle();
+
+        dialog.setHeaderTitle(title);
+        dialog.getHeader().add(createHeaderCloseButton());
 
         dialog.setCloseOnEsc(false);
         dialog.setCloseOnOutsideClick(false);
@@ -90,16 +103,18 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
 
         applyDialogModeSettings(view);
 
-        Header header = createHeader(title);
         Component wrapper = createViewWrapper(view);
-
-        VerticalLayout dialogOverlay = createDialogOverlay();
-        dialogOverlay.add(header, wrapper);
-
-        dialog.add(dialogOverlay);
+        dialog.add(wrapper);
     }
 
-    protected void applyDialogModeSettings(S view) {
+    protected void postInitDialog(Dialog dialog) {
+        String title = view.getPageTitle();
+
+        dialog.setHeaderTitle(title);
+        dialog.getElement().setAttribute("aria-label", title);
+    }
+
+    protected void applyDialogModeSettings(V view) {
         DialogMode dialogMode = view.getClass().getAnnotation(DialogMode.class);
         if (dialogMode != null) {
             setModal(dialogMode.modal());
@@ -124,20 +139,6 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
         }
     }
 
-    protected Header createHeader(String viewTitle) {
-        Header header = new Header();
-        header.addClassNames(BASE_STYLE_NAME + "-header", "draggable");
-
-        H2 title = new H2(viewTitle);
-        title.setClassName(BASE_STYLE_NAME + "-title");
-        header.add(title);
-
-        Button closeButton = createHeaderCloseButton();
-        header.add(closeButton);
-
-        return header;
-    }
-
     protected Button createHeaderCloseButton() {
         JmixButton closeButton = uiComponents().create(JmixButton.class);
         closeButton.setIcon(new Icon(VaadinIcon.CLOSE_SMALL));
@@ -146,7 +147,7 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
                 ButtonVariant.LUMO_ICON,
                 ButtonVariant.LUMO_CONTRAST
         );
-        closeButton.setClassName(BASE_STYLE_NAME + "-close-button");
+        closeButton.setClassName(BASE_CLASS_NAME + "-close-button");
         closeButton.setTitle(messages().getMessage("dialogWindow.closeButton.description"));
         closeButton.addClickListener(this::onCloseButtonClicked);
         return closeButton;
@@ -156,22 +157,11 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
         view.closeWithDefaultAction();
     }
 
-    protected Component createViewWrapper(S view) {
+    protected Component createViewWrapper(V view) {
         Scroller scroller = new Scroller(view);
         scroller.setHeightFull();
-        scroller.setClassName(BASE_STYLE_NAME + "-view-wrapper");
+        scroller.setClassName(BASE_CLASS_NAME + "-view-wrapper");
         return scroller;
-    }
-
-    protected VerticalLayout createDialogOverlay() {
-        VerticalLayout dialogContent = new VerticalLayout();
-        dialogContent.setPadding(false);
-        dialogContent.setSpacing(false);
-        dialogContent.setHeightFull();
-        dialogContent.getStyle().remove("width");
-        dialogContent.setAlignItems(FlexComponent.Alignment.STRETCH);
-        dialogContent.setClassName(BASE_STYLE_NAME + "-overlay");
-        return dialogContent;
     }
 
     protected EventHub getEventHub() {
@@ -188,23 +178,38 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
         }
     }
 
-    protected boolean hasSubscriptions(Class<?> eventClass) {
-        return eventHub != null && eventHub.hasSubscriptions(eventClass);
-    }
-
-    public S getView() {
+    /**
+     * @return a view witch is opened in this dialog window
+     */
+    public V getView() {
         return view;
     }
 
+    /**
+     * Opens the dialog.
+     */
     public void open() {
         fireViewBeforeShowEvent(view);
+        // In case of dynamic title, we can obtain it after
+        // all possible dependant properties are set
+        postInitDialog(dialog);
+
         dialog.open();
     }
 
+    /**
+     * Requests closing the dialog.
+     */
     public void close() {
         close(false);
     }
 
+    /**
+     * Requests closing the dialog.
+     *
+     * @param force {@code true} to close the dialog without checking the state
+     *              (e.g. unsaved changes), {@code false} otherwise.
+     */
     public void close(boolean force) {
         view.close(force ? StandardOutcome.DISCARD : StandardOutcome.CLOSE);
     }
@@ -215,24 +220,24 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
 
     protected void onDialogOpenedChanged(OpenedChangeEvent<Dialog> openedChangeEvent) {
         if (openedChangeEvent.isOpened()) {
-            fireViewAfterShowEvent(view);
+            fireViewReadyEvent(view);
 
-            AfterOpenEvent<S> event = new AfterOpenEvent<>(this);
+            AfterOpenEvent<V> event = new AfterOpenEvent<>(this);
             publish(AfterOpenEvent.class, event);
         }
     }
 
     protected void onViewAfterClosed(View.AfterCloseEvent closeEvent) {
-        AfterCloseEvent<S> event = new AfterCloseEvent<>(this, closeEvent.getCloseAction());
+        AfterCloseEvent<V> event = new AfterCloseEvent<>(this, closeEvent.getCloseAction());
         publish(AfterCloseEvent.class, event);
     }
 
-    protected void fireViewBeforeShowEvent(View view) {
-        UiControllerUtils.fireEvent(view, new BeforeShowEvent(view));
+    protected void fireViewBeforeShowEvent(View<?> view) {
+        ViewControllerUtils.fireEvent(view, new BeforeShowEvent(view));
     }
 
-    protected void fireViewAfterShowEvent(View view) {
-        UiControllerUtils.fireEvent(view, new AfterShowEvent(view));
+    protected void fireViewReadyEvent(View<?> view) {
+        ViewControllerUtils.fireEvent(view, new ReadyEvent(view));
     }
 
     protected void onDialogCloseAction(Dialog.DialogCloseActionEvent event) {
@@ -241,42 +246,52 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
         }
     }
 
+    /**
+     * Adds {@link AfterOpenEvent} listener.
+     *
+     * @param listener the listener to add
+     * @return a Registration for removing the event listener
+     */
     @SuppressWarnings("unchecked")
-    public Registration addAfterOpenListener(Consumer<AfterOpenEvent<S>> listener) {
+    public Registration addAfterOpenListener(Consumer<AfterOpenEvent<V>> listener) {
         Subscription subscription = getEventHub().subscribe(AfterOpenEvent.class, ((Consumer) listener));
         return Registration.once(subscription::remove);
     }
 
+    /**
+     * Adds {@link AfterCloseEvent} listener.
+     *
+     * @param listener the listener to add
+     * @return a Registration for removing the event listener
+     */
     @SuppressWarnings("unchecked")
-    public Registration addAfterCloseListener(Consumer<AfterCloseEvent<S>> listener) {
+    public Registration addAfterCloseListener(Consumer<AfterCloseEvent<V>> listener) {
         Subscription subscription = getEventHub().subscribe(AfterCloseEvent.class, ((Consumer) listener));
         return Registration.once(subscription::remove);
     }
 
-    //    @TriggerOnce
-    public static class AfterOpenEvent<S extends View<?>> extends EventObject {
+    public static class AfterOpenEvent<V extends View<?>> extends EventObject {
 
-        public AfterOpenEvent(DialogWindow<S> source) {
+        public AfterOpenEvent(DialogWindow<V> source) {
             super(source);
         }
 
         @SuppressWarnings("unchecked")
         @Override
-        public DialogWindow<S> getSource() {
-            return (DialogWindow<S>) super.getSource();
+        public DialogWindow<V> getSource() {
+            return (DialogWindow<V>) super.getSource();
         }
 
-        public S getView() {
+        public V getView() {
             return getSource().getView();
         }
     }
 
-    //    @TriggerOnce
-    public static class AfterCloseEvent<S extends View<?>> extends EventObject {
+    public static class AfterCloseEvent<V extends View<?>> extends EventObject {
 
         protected final CloseAction closeAction;
 
-        public AfterCloseEvent(DialogWindow<S> source, CloseAction closeAction) {
+        public AfterCloseEvent(DialogWindow<V> source, CloseAction closeAction) {
             super(source);
 
             this.closeAction = closeAction;
@@ -284,11 +299,11 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
 
         @SuppressWarnings("unchecked")
         @Override
-        public DialogWindow<S> getSource() {
-            return (DialogWindow<S>) super.getSource();
+        public DialogWindow<V> getSource() {
+            return (DialogWindow<V>) super.getSource();
         }
 
-        public S getView() {
+        public V getView() {
             return getSource().getView();
         }
 
@@ -306,42 +321,84 @@ public class DialogWindow<S extends View<?>> implements HasSize, HasTheme, HasSt
         return dialog.getElement();
     }
 
+    /**
+     * @return whether this dialog can be closed by hitting the esc-key or not.
+     */
     public boolean isCloseOnEsc() {
         return dialog.isCloseOnEsc();
     }
 
+    /**
+     * Sets whether this dialog can be closed by hitting the esc-key or not.
+     *
+     * @param closeOnEsc {@code true} to enable closing this dialog with the esc-key,
+     *                   {@code false} to disable it
+     */
     public void setCloseOnEsc(boolean closeOnEsc) {
         dialog.setCloseOnEsc(closeOnEsc);
     }
 
+    /**
+     * @return whether this dialog can be closed by clicking outside of it or not.
+     */
     public boolean isCloseOnOutsideClick() {
         return dialog.isCloseOnOutsideClick();
     }
 
+    /**
+     * Sets whether this dialog can be closed by clicking outside of it or not.
+     *
+     * @param closeOnOutsideClick {@code true} to enable closing this dialog with an outside
+     *                            click, {@code false} to disable it
+     */
     public void setCloseOnOutsideClick(boolean closeOnOutsideClick) {
         dialog.setCloseOnOutsideClick(closeOnOutsideClick);
     }
 
+    /**
+     * @return whether component is set as modal or modeless dialog.
+     */
     public boolean isModal() {
         return dialog.isModal();
     }
 
+    /**
+     * Sets whether component will open modal or modeless dialog.
+     *
+     * @param modal {@code false} to enable dialog to open as modeless modal, {@code true} otherwise
+     */
     public void setModal(boolean modal) {
         dialog.setModal(modal);
     }
 
+    /**
+     * Sets whether dialog is enabled to be dragged by the user or not.
+     *
+     * @return whether dialog is enabled to be dragged or not.
+     */
     public boolean isDraggable() {
         return dialog.isDraggable();
     }
 
+    /**
+     * @param draggable {@code true} to enable dragging of the dialog, {@code false} otherwise
+     */
     public void setDraggable(boolean draggable) {
         dialog.setDraggable(draggable);
     }
 
+    /**
+     * @return whether dialog is enabled to be resized or not.
+     */
     public boolean isResizable() {
         return dialog.isResizable();
     }
 
+    /**
+     * Sets whether dialog can be resized by user or not.
+     *
+     * @param resizable {@code true} to enabled resizing of the dialog, {@code false} otherwise.
+     */
     public void setResizable(boolean resizable) {
         dialog.setResizable(resizable);
     }

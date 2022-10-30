@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.view.builder;
 
 import com.vaadin.flow.component.Focusable;
@@ -8,7 +24,7 @@ import io.jmix.core.annotation.Internal;
 import io.jmix.core.entity.EntityValues;
 import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.core.metamodel.model.MetaPropertyPath;
-import io.jmix.flowui.FlowUiViewProperties;
+import io.jmix.flowui.FlowuiViewProperties;
 import io.jmix.flowui.Views;
 import io.jmix.flowui.component.valuepicker.EntityPicker;
 import io.jmix.flowui.data.*;
@@ -35,7 +51,7 @@ public class LookupWindowBuilderProcessor extends AbstractWindowBuilderProcessor
     protected FetchPlans fetchPlans;
     protected EntityStates entityStates;
     protected ExtendedEntities extendedEntities;
-    protected FlowUiViewProperties viewProperties;
+    protected FlowuiViewProperties viewProperties;
 
     public LookupWindowBuilderProcessor(ApplicationContext applicationContext,
                                         Views views,
@@ -46,7 +62,7 @@ public class LookupWindowBuilderProcessor extends AbstractWindowBuilderProcessor
                                         FetchPlans fetchPlans,
                                         EntityStates entityStates,
                                         ExtendedEntities extendedEntities,
-                                        FlowUiViewProperties viewProperties) {
+                                        FlowuiViewProperties viewProperties) {
         super(applicationContext, views, viewRegistry);
 
         this.metadata = metadata;
@@ -58,9 +74,9 @@ public class LookupWindowBuilderProcessor extends AbstractWindowBuilderProcessor
         this.viewProperties = viewProperties;
     }
 
-    public <E, S extends View<?>> DialogWindow<S> build(LookupWindowBuilder<E, S> builder) {
+    public <E, V extends View<?>> DialogWindow<V> build(LookupWindowBuilder<E, V> builder) {
 
-        S view = createView(builder);
+        V view = createView(builder);
 
         if (!(view instanceof LookupView)) {
             throw new IllegalArgumentException(String.format("View '%s' does not implement %s. View class: %s",
@@ -80,7 +96,7 @@ public class LookupWindowBuilderProcessor extends AbstractWindowBuilderProcessor
         builder.getSelectHandler().ifPresent(lookupView::setSelectionHandler);
         builder.getSelectValidator().ifPresent(lookupView::setSelectionValidator);
 
-        DialogWindow<S> dialog = createDialog(view);
+        DialogWindow<V> dialog = createDialog(view);
         initDialog(builder, dialog);
 
         builder.getField().ifPresent(field -> {
@@ -118,9 +134,9 @@ public class LookupWindowBuilderProcessor extends AbstractWindowBuilderProcessor
 
     @SuppressWarnings("unchecked")
     @Override
-    protected <S extends View<?>> Class<S> inferViewClass(DialogWindowBuilder<S> builder) {
-        LookupWindowBuilder<?, S> lookupBuilder = ((LookupWindowBuilder<?, S>) builder);
-        return (Class<S>) viewRegistry.getLookupViewInfo(lookupBuilder.getEntityClass()).getControllerClass();
+    protected <V extends View<?>> Class<V> inferViewClass(DialogWindowBuilder<V> builder) {
+        LookupWindowBuilder<?, V> lookupBuilder = ((LookupWindowBuilder<?, V>) builder);
+        return (Class<V>) viewRegistry.getLookupViewInfo(lookupBuilder.getEntityClass()).getControllerClass();
     }
 
     protected <E> void handleSelectionWithContainer(LookupWindowBuilder<E, ?> builder,
@@ -156,7 +172,7 @@ public class LookupWindowBuilderProcessor extends AbstractWindowBuilderProcessor
             }
         }
 
-        DataContext dataContext = UiControllerUtils.getViewData(builder.getOrigin()).getDataContext();
+        DataContext dataContext = ViewControllerUtils.getViewData(builder.getOrigin()).getDataContext();
 
         List<E> mergedItems = new ArrayList<>(selectedItems.size());
         FetchPlan viewForCollectionContainer = viewProperties.isReloadUnfetchedAttributesFromLookupViews()
@@ -183,7 +199,7 @@ public class LookupWindowBuilderProcessor extends AbstractWindowBuilderProcessor
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    protected <E, S extends View<?>> void handleSelectionWithField(LookupWindowBuilder<E, S> builder,
+    protected <E, V extends View<?>> void handleSelectionWithField(LookupWindowBuilder<E, V> builder,
                                                                    HasValue field,
                                                                    Collection<E> itemsFromLookup) {
         if (itemsFromLookup.isEmpty()) {

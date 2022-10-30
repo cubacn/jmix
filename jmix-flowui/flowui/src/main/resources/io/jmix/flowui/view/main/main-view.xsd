@@ -34,7 +34,7 @@
                     <xs:complexType>
                         <xs:sequence>
                             <xs:choice maxOccurs="unbounded">
-                                <xs:element name="action" type="layout:baseAction"/>
+                                <xs:element name="action" type="layout:viewAction"/>
                             </xs:choice>
                         </xs:sequence>
                     </xs:complexType>
@@ -58,7 +58,7 @@
         <xs:attribute name="drawerOpened" type="xs:boolean"/>
         <xs:attribute name="primarySection" type="primarySection"/>
 
-        <xs:attributeGroup ref="layout:hasClassName"/>
+        <xs:attributeGroup ref="layout:hasClassNames"/>
     </xs:complexType>
 
     <xs:simpleType name="primarySection">

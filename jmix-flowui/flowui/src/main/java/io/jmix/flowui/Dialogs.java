@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui;
 
 import com.vaadin.flow.component.Component;
@@ -6,10 +22,45 @@ import io.jmix.flowui.kit.action.Action;
 
 import javax.annotation.Nullable;
 
+/**
+ * Provides fluent interface for configuring and displaying dialogs.
+ */
 public interface Dialogs {
 
+    /**
+     * Creates option dialog builder.
+     * <br>
+     * Example of showing an option dialog:
+     * <pre>{@code
+     * dialogs.createOptionDialog()
+     *         .withHeader("Confirm")
+     *         .withText("Do you want to discard data?")
+     *         .withActions(
+     *                 new DialogAction(DialogAction.Type.YES).withHandler(e -> {
+     *                     // YES option selected
+     *                 }),
+     *                 new DialogAction(DialogAction.Type.NO).withHandler(e -> {
+     *                     // NO option selected
+     *                 })
+     *         )
+     *         .open();
+     * }</pre>
+     */
     OptionDialogBuilder createOptionDialog();
 
+    /**
+     * Creates message dialog builder.
+     * <br>
+     * Example of showing a message dialog:
+     * <pre>{@code
+     * dialogs.createMessageDialog()
+     *         .withHeader("Attention")
+     *         .withText("Report has been saved")
+     *         .open();
+     * }</pre>
+     *
+     * @return builder
+     */
     MessageDialogBuilder createMessageDialog();
 
     interface OptionDialogBuilder extends DialogBuilder<OptionDialogBuilder>,

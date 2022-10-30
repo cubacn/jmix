@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,10 +40,9 @@ public class ObservableSet<T> extends ForwardingSet<T> implements Serializable {
     }
 
     private Object writeReplace() throws ObjectStreamException {
-        // TODO: gg, add type
-        Set result = delegate;
+        Set<T> result = delegate;
         while (result instanceof ObservableSet) {
-            result = ((ObservableSet) result).delegate;
+            result = ((ObservableSet<T>) result).delegate;
         }
         return result;
     }

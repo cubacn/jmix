@@ -1,23 +1,39 @@
+/*
+ * Copyright 2022 Haulmont.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.jmix.flowui.action.entitypicker;
 
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.router.QueryParameters;
-import com.vaadin.flow.router.RouteParameters;
 import io.jmix.core.DevelopmentException;
 import io.jmix.core.Messages;
 import io.jmix.core.metamodel.model.MetaClass;
-import io.jmix.flowui.DialogWindowBuilders;
-import io.jmix.flowui.FlowUiComponentProperties;
+import io.jmix.flowui.DialogWindows;
+import io.jmix.flowui.FlowuiComponentProperties;
 import io.jmix.flowui.action.ActionType;
 import io.jmix.flowui.action.ViewOpeningAction;
 import io.jmix.flowui.action.valuepicker.PickerAction;
 import io.jmix.flowui.component.EntityPickerComponent;
-import io.jmix.flowui.kit.component.FlowUiComponentUtils;
+import io.jmix.flowui.kit.component.FlowuiComponentUtils;
 import io.jmix.flowui.kit.component.KeyCombination;
-import io.jmix.flowui.view.*;
-import io.jmix.flowui.view.DialogWindow.AfterCloseEvent;
-import io.jmix.flowui.view.builder.LookupWindowBuilder;
 import io.jmix.flowui.sys.ActionViewInitializer;
+import io.jmix.flowui.view.DialogWindow.AfterCloseEvent;
+import io.jmix.flowui.view.LookupView;
+import io.jmix.flowui.view.OpenMode;
+import io.jmix.flowui.view.View;
+import io.jmix.flowui.view.builder.LookupWindowBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.annotation.Nullable;
@@ -32,7 +48,7 @@ public class EntityLookupAction<E> extends PickerAction<EntityLookupAction<E>, E
 
     public static final String ID = "entity_lookup";
 
-    protected DialogWindowBuilders dialogBuilders;
+    protected DialogWindows dialogWindows;
 
     protected ActionViewInitializer viewInitializer = new ActionViewInitializer();
 
@@ -51,12 +67,12 @@ public class EntityLookupAction<E> extends PickerAction<EntityLookupAction<E>, E
     protected void initAction() {
         super.initAction();
 
-        this.icon = FlowUiComponentUtils.iconToSting(VaadinIcon.ELLIPSIS_DOTS_H);
+        this.icon = FlowuiComponentUtils.convertToIcon(VaadinIcon.ELLIPSIS_DOTS_H);
     }
 
     @Autowired
-    public void setDialogBuilders(DialogWindowBuilders dialogBuilders) {
-        this.dialogBuilders = dialogBuilders;
+    public void setDialogWindows(DialogWindows dialogWindows) {
+        this.dialogWindows = dialogWindows;
     }
 
     @Autowired
@@ -65,7 +81,7 @@ public class EntityLookupAction<E> extends PickerAction<EntityLookupAction<E>, E
     }
 
     @Autowired
-    protected void setFlowUiComponentProperties(FlowUiComponentProperties flowUiComponentProperties) {
+    protected void setFlowUiComponentProperties(FlowuiComponentProperties flowUiComponentProperties) {
         this.shortcutCombination = KeyCombination.create(flowUiComponentProperties.getPickerLookupShortcut());
     }
 
@@ -113,34 +129,32 @@ public class EntityLookupAction<E> extends PickerAction<EntityLookupAction<E>, E
 
     @Nullable
     @Override
-    public RouteParameters getRouteParameters() {
+    public RouteParametersProvider getRouteParametersProvider() {
         // Lookup view opens in a dialog window only
         return null;
     }
 
     @Override
-    public void setRouteParameters(@Nullable RouteParameters routeParameters) {
+    public void setRouteParametersProvider(@Nullable RouteParametersProvider provider) {
         throw new UnsupportedOperationException("Lookup view opens in a dialog window only");
     }
 
     @Nullable
     @Override
-    public QueryParameters getQueryParameters() {
+    public QueryParametersProvider getQueryParametersProvider() {
         // Lookup view opens in a dialog window only
         return null;
     }
 
     @Override
-    public void setQueryParameters(@Nullable QueryParameters queryParameters) {
+    public void setQueryParametersProvider(@Nullable QueryParametersProvider provider) {
         throw new UnsupportedOperationException("Lookup view opens in a dialog window only");
     }
 
     @Override
-    public <S extends View<?>> void setAfterCloseHandler(@Nullable Consumer<AfterCloseEvent<S>> afterCloseHandler) {
+    public <V extends View<?>> void setAfterCloseHandler(@Nullable Consumer<AfterCloseEvent<V>> afterCloseHandler) {
         viewInitializer.setAfterCloseHandler(afterCloseHandler);
     }
-
-    // TODO: gg, editable?
 
     @Override
     public void execute() {
@@ -150,7 +164,7 @@ public class EntityLookupAction<E> extends PickerAction<EntityLookupAction<E>, E
                     "for the " + target.getClass().getSimpleName(), "action ID", getId());
         }
 
-        LookupWindowBuilder<E, View<?>> builder = dialogBuilders.lookup(target);
+        LookupWindowBuilder<E, View<?>> builder = dialogWindows.lookup(target);
 
         builder = viewInitializer.initWindowBuilder(builder);
 
@@ -163,6 +177,22 @@ public class EntityLookupAction<E> extends PickerAction<EntityLookupAction<E>, E
         }
 
         builder.open();
+    }
+
+    /**
+     * @see #setViewId(String)
+     */
+    public EntityLookupAction<E> withViewId(@Nullable String viewId) {
+        setViewId(viewId);
+        return this;
+    }
+
+    /**
+     * @see #setViewClass(Class)
+     */
+    public EntityLookupAction<E> withViewClass(@Nullable Class<? extends View> viewClass) {
+        setViewClass(viewClass);
+        return this;
     }
 
     public EntityLookupAction<E> withSelectValidator(Predicate<LookupView.ValidationContext<E>> selectValidator) {

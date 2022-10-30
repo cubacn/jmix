@@ -27,8 +27,8 @@ import io.jmix.flowui.model.DataLoader;
 import io.jmix.flowui.model.InstanceContainer;
 import io.jmix.flowui.model.ViewData;
 import io.jmix.flowui.view.View;
-import io.jmix.flowui.view.UiControllerUtils;
-import io.jmix.flowui.sys.UiControllerReflectionInspector;
+import io.jmix.flowui.view.ViewControllerUtils;
+import io.jmix.flowui.sys.ViewControllerReflectionInspector;
 import io.jmix.flowui.xml.layout.ComponentLoader;
 import io.jmix.flowui.xml.layout.ComponentLoader.ComponentContext;
 import io.jmix.flowui.xml.layout.support.LoaderSupport;
@@ -40,10 +40,10 @@ import javax.annotation.Nullable;
 public class DataLoadCoordinatorFacetProvider implements FacetProvider<DataLoadCoordinator> {
 
     protected LoaderSupport loaderSupport;
-    protected UiControllerReflectionInspector reflectionInspector;
+    protected ViewControllerReflectionInspector reflectionInspector;
 
     public DataLoadCoordinatorFacetProvider(LoaderSupport loaderSupport,
-                                            UiControllerReflectionInspector reflectionInspector) {
+                                            ViewControllerReflectionInspector reflectionInspector) {
         this.loaderSupport = loaderSupport;
         this.reflectionInspector = reflectionInspector;
     }
@@ -82,7 +82,7 @@ public class DataLoadCoordinatorFacetProvider implements FacetProvider<DataLoadC
         loaderSupport.loadBoolean(element, "auto")
                 .ifPresent(auto -> {
                     if (auto) {
-                        context.addInitTask(new AutoConfigurationInitTask(facet));
+                        context.addPreInitTask(new AutoConfigurationInitTask(facet));
                     }
                 });
     }
@@ -125,15 +125,15 @@ public class DataLoadCoordinatorFacetProvider implements FacetProvider<DataLoadC
             case "BeforeShow":
                 eventClass = View.BeforeShowEvent.class;
                 break;
-            case "AfterShow":
-                eventClass = View.AfterShowEvent.class;
+            case "Ready":
+                eventClass = View.ReadyEvent.class;
                 break;
             default:
                 throw new GuiDevelopmentException("Unsupported 'dataLoadCoordinator/refresh/onViewEvent.event' " +
                         "value: " + type, context);
         }
 
-        context.addInitTask(new OnViewEventLoadTriggerInitTask(facet, loaderId, eventClass));
+        context.addPreInitTask(new OnViewEventLoadTriggerInitTask(facet, loaderId, eventClass));
     }
 
     protected void loadOnContainerItemChanged(DataLoadCoordinator facet, ComponentContext context,
@@ -141,7 +141,7 @@ public class DataLoadCoordinatorFacetProvider implements FacetProvider<DataLoadC
         String container = loadEventRequiredAttribute(element, "container", context);
 
         String param = loadParam(element);
-        context.addInitTask(new OnContainerItemChangedLoadTriggerInitTask(facet, loaderId, container, param));
+        context.addPreInitTask(new OnContainerItemChangedLoadTriggerInitTask(facet, loaderId, container, param));
     }
 
     protected void loadOnComponentValueChanged(DataLoadCoordinator facet, ComponentContext context,
@@ -151,7 +151,7 @@ public class DataLoadCoordinatorFacetProvider implements FacetProvider<DataLoadC
         String param = loadParam(element);
         LikeClause likeClause = loadLikeClause(element);
 
-        context.addInitTask(new OnComponentValueChangedLoadTriggerInitTask(
+        context.addPreInitTask(new OnComponentValueChangedLoadTriggerInitTask(
                 facet, loaderId, component, param, likeClause));
     }
 
@@ -188,7 +188,7 @@ public class DataLoadCoordinatorFacetProvider implements FacetProvider<DataLoadC
         public void execute(ComponentContext context, View<?> view) {
             Preconditions.checkNotNullArgument(facet.getOwner());
 
-            ViewData viewData = UiControllerUtils.getViewData(facet.getOwner());
+            ViewData viewData = ViewControllerUtils.getViewData(facet.getOwner());
             DataLoader loader = viewData.getLoader(loaderId);
             facet.addOnViewEventLoadTrigger(loader, eventClass);
         }
@@ -213,7 +213,7 @@ public class DataLoadCoordinatorFacetProvider implements FacetProvider<DataLoadC
         public void execute(ComponentContext context, View<?> view) {
             Preconditions.checkNotNullArgument(facet.getOwner());
 
-            ViewData viewData = UiControllerUtils.getViewData(facet.getOwner());
+            ViewData viewData = ViewControllerUtils.getViewData(facet.getOwner());
             DataLoader loader = viewData.getLoader(loaderId);
             InstanceContainer<?> container = viewData.getContainer(containerId);
 
@@ -243,9 +243,9 @@ public class DataLoadCoordinatorFacetProvider implements FacetProvider<DataLoadC
         public void execute(ComponentContext context, View<?> view) {
             Preconditions.checkNotNullArgument(facet.getOwner());
 
-            ViewData viewData = UiControllerUtils.getViewData(facet.getOwner());
+            ViewData viewData = ViewControllerUtils.getViewData(facet.getOwner());
             DataLoader loader = viewData.getLoader(loaderId);
-            Component component = UiComponentUtils.findComponentOrElseThrow(facet.getOwner(), componentId);
+            Component component = UiComponentUtils.getComponent(facet.getOwner(), componentId);
 
             facet.addOnComponentValueChangedLoadTrigger(loader, component, param, likeClause);
         }

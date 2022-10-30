@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Haulmont.
+ * Copyright 2022 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package io.jmix.flowui.view;
 
 /**
- * Detail view purpose: to create a new entity instance or to edit an existing one.
+ * Defines a detail view purpose: to create a new entity instance or to edit an existing one.
  */
 public enum DetailViewMode {
     CREATE,
